@@ -1,22 +1,32 @@
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical } from "lucide-react";
+import { ExternalLink, GripVertical } from "lucide-react";
 import { type Issue } from "@/features/issues/api/issues.api";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { PriorityBadge } from "@/pages/app/priority-badge";
+import { StatusPill } from "@/pages/app/status-pill";
 
 export function IssueCard({ issue, onClick }: { issue: Issue; onClick: () => void }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: issue.id,
   });
 
-  const style = { transform: CSS.Translate.toString(transform) };
+const style = transform
+  ? { transform: CSS.Translate.toString(transform) }
+  : undefined;
+
 
   return (
     <Card
       ref={setNodeRef}
       style={style}
-      className={cn("p-3", isDragging && "opacity-70")}
+      className={cn(
+        "group relative w-full p-3 transition-colors hover:bg-accent/40",
+        isDragging && "opacity-0" // hoặc "opacity-20" nếu muốn còn bóng mờ
+      )}
+      
+      
       onClick={onClick}
       role="button"
     >
@@ -33,9 +43,35 @@ export function IssueCard({ issue, onClick }: { issue: Issue; onClick: () => voi
         </button>
 
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-medium">{issue.title}</div>
-          <div className="mt-1 text-xs text-muted-foreground line-clamp-2">
-            {issue.description ?? "No description"}
+          {/* Title row + hover action */}
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <div className="text-sm font-medium truncate">{issue.title}</div>
+            </div>
+
+            {/* Open icon (hover) */}
+            <button
+              type="button"
+              className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
+              title="Open"
+              onClick={(e) => {
+                e.stopPropagation();
+                onClick();
+              }}
+            >
+              <ExternalLink className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* Badges */}
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <StatusPill status={issue.status} />
+            <PriorityBadge priority={issue.priority} />
+          </div>
+
+          {/* Description */}
+          <div className="mt-2 text-xs text-muted-foreground line-clamp-2">
+            {issue.description?.trim() ? issue.description : "No description"}
           </div>
         </div>
       </div>

@@ -5,6 +5,8 @@ import { ProjectHeader } from "@/widgets/project/project-header";
 import { Button } from "@/components/ui/button";
 import { CreateIssueDialog } from "@/widgets/issues/create-issue-dialog";
 import { useState } from "react";
+import { useHotkeys, isTypingTarget } from "@/hooks/use-hotkeys";
+
 
 export default function ProjectDetailPage() {
 
@@ -13,6 +15,47 @@ export default function ProjectDetailPage() {
   if (!projectId) return null;
 
   const { data: project, isLoading, isError, error, refetch } = useProjectQuery(projectId);
+
+  useHotkeys((e) => {
+    // Esc: đóng create dialog nếu đang mở
+    if (e.key === "Escape") {
+      if (openCreate) {
+        e.preventDefault();
+        setOpenCreate(false);
+      }
+      return;
+    }
+  
+    // Nếu đang gõ trong input/textarea thì không bắt N và /
+    if (isTypingTarget(e.target)) return;
+  
+    // N: mở create issue
+    if (e.key === "n" || e.key === "N") {
+      e.preventDefault();
+      setOpenCreate(true);
+      return;
+    }
+  
+    // /: focus search
+    if (e.key === "/") {
+      e.preventDefault();
+      const el = document.getElementById("issue-search") as HTMLInputElement | null;
+      el?.focus();
+      return;
+    }
+  });
+  
+
+  if (isError) {
+    return (
+      <div className="space-y-3">
+        <div className="text-sm text-destructive">{(error as Error).message}</div>
+        <Button variant="outline" onClick={() => refetch()}>
+          Retry
+        </Button>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -28,16 +71,8 @@ export default function ProjectDetailPage() {
     );
   }
 
-  if (isError) {
-    return (
-      <div className="space-y-3">
-        <div className="text-sm text-destructive">{(error as Error).message}</div>
-        <Button variant="outline" onClick={() => refetch()}>
-          Retry
-        </Button>
-      </div>
-    );
-  }
+
+
 
   if (!project) return null;
 
