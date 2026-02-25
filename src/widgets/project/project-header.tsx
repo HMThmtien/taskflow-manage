@@ -25,8 +25,6 @@ export function ProjectHeader({
           </h1>
           <p className="text-sm text-muted-foreground">{project.description ?? "No description"}</p>
         </div>
-
-        <Button onClick={onNewIssue}>New issue</Button>
       </div>
     </div>
   );

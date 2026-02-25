@@ -8,16 +8,16 @@ import {
   type ProjectRole,
 } from "./project-members.api";
 
-export const memberKeys = {
-  all: ["projectMembers"] as const,
-  project: (projectId: string) => [...memberKeys.all, projectId] as const,
-  me: (projectId: string) => [...memberKeys.project(projectId), "me"] as const,
-  list: (projectId: string) => [...memberKeys.project(projectId), "list"] as const,
+export const projectMemberKeys = {
+  all: ["project-members"] as const,
+  project: (projectId: string) => [...projectMemberKeys.all, projectId] as const,
+  list: (projectId: string) => [...projectMemberKeys.project(projectId), "list"] as const,
+  me: (projectId: string) => [...projectMemberKeys.project(projectId), "me"] as const,
 };
 
 export function useProjectMembersQuery(projectId: string) {
   return useQuery({
-    queryKey: memberKeys.list(projectId),
+    queryKey: projectMemberKeys.list(projectId),
     queryFn: () => getProjectMembers(projectId),
     enabled: !!projectId,
   });
@@ -25,7 +25,7 @@ export function useProjectMembersQuery(projectId: string) {
 
 export function useMyProjectRoleQuery(projectId: string) {
   return useQuery({
-    queryKey: memberKeys.me(projectId),
+    queryKey: projectMemberKeys.me(projectId),
     queryFn: () => getMyProjectRole(projectId),
     enabled: !!projectId,
   });
@@ -35,8 +35,9 @@ export function useAddProjectMemberMutation(projectId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (payload: { username: string; role: ProjectRole }) => addProjectMember(projectId, payload),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: memberKeys.project(projectId) });
+    onSuccess: async () => {
+      // ✅ invalidate theo prefix project, chắc chắn list+me đều refresh
+      await qc.invalidateQueries({ queryKey: projectMemberKeys.project(projectId) });
     },
   });
 }
@@ -46,8 +47,8 @@ export function useUpdateProjectMemberRoleMutation(projectId: string) {
   return useMutation({
     mutationFn: (payload: { userId: string; role: ProjectRole }) =>
       updateProjectMemberRole(projectId, payload.userId, { role: payload.role }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: memberKeys.project(projectId) });
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: projectMemberKeys.project(projectId) });
     },
   });
 }
@@ -56,8 +57,8 @@ export function useRemoveProjectMemberMutation(projectId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (userId: string) => removeProjectMember(projectId, userId),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: memberKeys.project(projectId) });
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: projectMemberKeys.project(projectId) });
     },
   });
 }

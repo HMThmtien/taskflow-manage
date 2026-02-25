@@ -98,5 +98,9 @@ export async function authFetchJson<T>(input: RequestInfo, init?: RequestInit): 
     throw new Error(message);
   }
 
-  return res.json() as Promise<T>;
+  // ✅ Handle empty body (204 No Content / 200 nhưng không có JSON)
+  if (res.status === 204) return undefined as T;
+
+  const text = await res.text();
+  return (text ? (JSON.parse(text) as T) : (undefined as T));
 }

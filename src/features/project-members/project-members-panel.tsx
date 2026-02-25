@@ -215,9 +215,9 @@ export function ProjectMembersPanel({ projectId }: { projectId: string }) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>User</TableHead>
-                <TableHead className="w-[260px]">Role</TableHead>
-                <TableHead className="w-[160px] text-right">Actions</TableHead>
+                <TableHead className="w-[360px]" >User</TableHead>
+                <TableHead className="w-[160px]">Role</TableHead>
+                <TableHead className="w-[260px] text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
 
