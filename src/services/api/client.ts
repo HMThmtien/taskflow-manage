@@ -28,8 +28,9 @@ async function refreshTokens(): Promise<Tokens> {
 
   if (!res.ok) throw new Error("Refresh failed");
 
-  const data = await res.json();
-  const payload = data.data ?? data;
+  const raw = await res.text();
+  const data = raw ? JSON.parse(raw) : null;
+  const payload = data?.data ?? data;
 
   const next: Tokens = {
     accessToken: payload.accessToken,
@@ -40,6 +41,12 @@ async function refreshTokens(): Promise<Tokens> {
 
   setTokens(next);
   return next;
+}
+
+async function parseBody<T>(res: Response): Promise<T> {
+  if (res.status === 204) return undefined as T;
+  const text = await res.text();
+  return (text ? (JSON.parse(text) as T) : (undefined as T));
 }
 
 export async function fetchJson<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
@@ -60,7 +67,7 @@ export async function fetchJson<T>(input: RequestInfo, init?: RequestInit): Prom
     throw new Error(message);
   }
 
-  return res.json() as Promise<T>;
+  return parseBody<T>(res);
 }
 
 export async function authFetchJson<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
@@ -71,13 +78,11 @@ export async function authFetchJson<T>(input: RequestInfo, init?: RequestInit): 
       ...(init?.headers ?? {}),
       ...(tokens?.accessToken ? { Authorization: `Bearer ${tokens.accessToken}` } : {}),
     };
-
     return fetch(input, { ...init, headers });
   };
 
   let res = await doFetch();
 
-  // Access token hết hạn -> refresh -> retry 1 lần
   if (res.status === 401) {
     if (!refreshInFlight) {
       refreshInFlight = refreshTokens().finally(() => {
@@ -85,7 +90,6 @@ export async function authFetchJson<T>(input: RequestInfo, init?: RequestInit): 
       });
     }
     await refreshInFlight;
-
     res = await doFetch();
   }
 
@@ -98,9 +102,5 @@ export async function authFetchJson<T>(input: RequestInfo, init?: RequestInit): 
     throw new Error(message);
   }
 
-  // ✅ Handle empty body (204 No Content / 200 nhưng không có JSON)
-  if (res.status === 204) return undefined as T;
-
-  const text = await res.text();
-  return (text ? (JSON.parse(text) as T) : (undefined as T));
+  return parseBody<T>(res);
 }
