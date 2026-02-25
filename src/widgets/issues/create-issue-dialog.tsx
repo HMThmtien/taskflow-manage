@@ -16,8 +16,8 @@ const schema = z.object({
   title: z.string().min(2, "Title tối thiểu 2 ký tự"),
   // input có thể undefined, output sẽ default thành ""
   description: z.string().optional().default(""),
-  // input có thể undefined, output sẽ default thành "medium"
-  priority: z.enum(["low", "medium", "high"]).optional().default("medium"),
+  // input có thể undefined, output sẽ default thành "MEDIUM"
+  priority: z.enum(["LOW", "MEDIUM", "HIGH"]).optional().default("MEDIUM"),
 });
 
 // ✅ QUAN TRỌNG: RHF làm việc với INPUT type (trước khi Zod apply default)
@@ -40,7 +40,7 @@ export function CreateIssueDialog({
     defaultValues: {
       title: "",
       description: "",
-      priority: "medium",
+      priority: "MEDIUM",
     },
   });
 
@@ -48,7 +48,7 @@ export function CreateIssueDialog({
     <Dialog
       open={open}
       onOpenChange={(v) => {
-        if (!v) form.reset({ title: "", description: "", priority: "medium" });
+        if (!v) form.reset({ title: "", description: "", priority: "MEDIUM" });
         onOpenChange(v);
       }}
     >
@@ -67,11 +67,11 @@ export function CreateIssueDialog({
                   // values.description có thể undefined theo input type
                   description: values.description?.trim() || undefined,
                   // values.priority có thể undefined theo input type
-                  priority: values.priority ?? "medium",
+                  priority: values.priority ?? "MEDIUM",
                 });
 
                 toast({ title: "Issue created" });
-                form.reset({ title: "", description: "", priority: "medium" });
+                form.reset({ title: "", description: "", priority: "MEDIUM" });
                 onOpenChange(false);
               } catch (e: any) {
                 toast({ title: "Create failed", description: e?.message ?? "Unknown error" });
@@ -98,16 +98,16 @@ export function CreateIssueDialog({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Priority</FormLabel>
-                  <Select value={field.value ?? "medium"} onValueChange={field.onChange}>
+                  <Select value={field.value ?? "MEDIUM"} onValueChange={field.onChange}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select priority" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="low">Low</SelectItem>
-                      <SelectItem value="medium">Medium</SelectItem>
-                      <SelectItem value="high">High</SelectItem>
+                      <SelectItem value="LOW">Low</SelectItem>
+                      <SelectItem value="MEDIUM">Medium</SelectItem>
+                      <SelectItem value="HIGH">High</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />

@@ -7,15 +7,15 @@ import { useIssueFilters } from "@/features/issues/api/use-issue-filters";
 import type { IssueFilters } from "@/features/issues/api/issue-filters";
 
 const statusOptions: { value: NonNullable<IssueFilters["status"]>; label: string }[] = [
-  { value: "todo", label: "Todo" },
-  { value: "in_progress", label: "In Progress" },
-  { value: "done", label: "Done" },
+  { value: "TODO", label: "Todo" },
+  { value: "IN_PROGRESS", label: "In Progress" },
+  { value: "DONE", label: "Done" },
 ];
 
 const priorityOptions: { value: NonNullable<IssueFilters["priority"]>; label: string }[] = [
-  { value: "low", label: "Low" },
-  { value: "medium", label: "Medium" },
-  { value: "high", label: "High" },
+  { value: "LOW", label: "Low" },
+  { value: "MEDIUM", label: "Medium" },
+  { value: "HIGH", label: "High" },
 ];
 
 export function IssueFilterBar() {

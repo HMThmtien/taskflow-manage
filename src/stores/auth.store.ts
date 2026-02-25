@@ -1,36 +1,55 @@
 import { create } from "zustand";
+import { fetchJson } from "@/services/api/client";
 
-type User = { id: string; name: string; email: string };
-
-type AuthState = {
-  token: string | null;
-  user: User | null;
-  login: (payload: { email: string; password: string }) => Promise<void>;
-  logout: () => void;
+type Tokens = {
+  accessToken: string;
+  refreshToken: string;
+  username?: string;
+  role?: string;
 };
 
-export const useAuthStore = create<AuthState>((set) => ({
-  token: localStorage.getItem("taskflow_token"),
-  user: localStorage.getItem("taskflow_user")
-    ? JSON.parse(localStorage.getItem("taskflow_user") as string)
+type AuthState = {
+  tokens: Tokens | null;
+  login: (payload: { username: string; password: string }) => Promise<void>;
+  register: (payload: { username: string; password: string }) => Promise<void>;
+  logout: () => void;
+  isAuthed: () => boolean;
+};
+
+const TOKENS_KEY = "taskflow_tokens";
+
+export const useAuthStore = create<AuthState>((set, get) => ({
+  tokens: localStorage.getItem(TOKENS_KEY)
+    ? (JSON.parse(localStorage.getItem(TOKENS_KEY) as string) as Tokens)
     : null,
 
-  login: async ({ email }) => {
-    // mock login delay
-    await new Promise((r) => setTimeout(r, 400));
+  isAuthed: () => !!get().tokens?.accessToken,
 
-    const token = "mock_token";
-    const user = { id: "u1", name: "Kim Hoo", email };
+  login: async ({ username, password }) => {
+    const res = await fetchJson<{ data: Tokens }>(`/api/auth/login`, {
+      method: "POST",
+      body: JSON.stringify({ username, password }),
+    });
 
-    localStorage.setItem("taskflow_token", token);
-    localStorage.setItem("taskflow_user", JSON.stringify(user));
+    const tokens = res.data;
+    localStorage.setItem(TOKENS_KEY, JSON.stringify(tokens));
+    set({ tokens });
+  },
 
-    set({ token, user });
+  // ✅ thêm register
+  register: async ({ username, password }) => {
+    const res = await fetchJson<{ data: Tokens }>(`/api/auth/register`, {
+      method: "POST",
+      body: JSON.stringify({ username, password }),
+    });
+
+    const tokens = res.data;
+    localStorage.setItem(TOKENS_KEY, JSON.stringify(tokens));
+    set({ tokens });
   },
 
   logout: () => {
-    localStorage.removeItem("taskflow_token");
-    localStorage.removeItem("taskflow_user");
-    set({ token: null, user: null });
+    localStorage.removeItem(TOKENS_KEY);
+    set({ tokens: null });
   },
 }));

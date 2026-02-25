@@ -1,4 +1,3 @@
-
 import { useMemo, useState } from "react";
 import { type Issue, type IssueStatus } from "@/features/issues/api/issues.api";
 import { useIssuesQuery, useMoveIssueMutation } from "@/features/issues/api/issues.queries";
@@ -24,37 +23,28 @@ import { StatusPill } from "@/pages/app/status-pill";
 import { PriorityBadge } from "@/pages/app/priority-badge";
 
 const columns: { key: IssueStatus; title: string }[] = [
-  { key: "todo", title: "Todo" },
-  { key: "in_progress", title: "In Progress" },
-  { key: "done", title: "Done" },
+  { key: "TODO", title: "Todo" },
+  { key: "IN_PROGRESS", title: "In Progress" },
+  { key: "DONE", title: "Done" },
 ];
 
 export function KanbanBoard({ projectId }: { projectId: string }) {
-  const { data, isLoading, isError, error, refetch } = useIssuesQuery(projectId);
+  // Nếu issues.queries.ts của bạn hỗ trợ truyền filters lên server, dùng dòng này:
+  // const { data, isLoading, isError, error, refetch } = useIssuesQuery(projectId, filters);
+  // Còn nếu hiện tại chỉ nhận projectId thì giữ như bạn đang:
+  const { filters } = useIssueFilters();
+  const { data, isLoading, isError, error, refetch } = useIssuesQuery(projectId, filters);
+
   const moveMut = useMoveIssueMutation(projectId);
+
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Issue | null>(null);
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 8 },
     })
   );
-  
-  const activeIssue = useMemo(() => {
-    if (!activeId) return null;
-    return (data ?? []).find((i) => i.id === activeId) ?? null;
-  }, [activeId, data]);
-  
-  const [selected, setSelected] = useState<Issue | null>(null);
-  useHotkeys((e) => {
-    if (e.key !== "Escape") return;
-  
-    // đang gõ trong input/textarea (ví dụ trong Drawer) thì cho Esc hoạt động bình thường:
-    // nhưng ở đây Esc dùng để đóng drawer vẫn ok, mình vẫn cho chạy
-    e.preventDefault();
-    if (selected) setSelected(null);
-  });
-  
-  const { filters } = useIssueFilters();
 
   const issuesList = data ?? [];
 
@@ -68,25 +58,26 @@ export function KanbanBoard({ projectId }: { projectId: string }) {
     });
   }, [issuesList, filters.q, filters.status, filters.priority]);
 
-  const grouped = useMemo(() => {
-    return {
-      todo: filteredIssues.filter((i) => i.status === "todo"),
-      in_progress: filteredIssues.filter((i) => i.status === "in_progress"),
-      done: filteredIssues.filter((i) => i.status === "done"),
-    };
-  }, [filteredIssues]);
+  const grouped = useMemo(
+    () => ({
+      TODO: filteredIssues.filter((i) => i.status === "TODO"),
+      IN_PROGRESS: filteredIssues.filter((i) => i.status === "IN_PROGRESS"),
+      DONE: filteredIssues.filter((i) => i.status === "DONE"),
+    }),
+    [filteredIssues]
+  );
 
-  // function onDragEnd(e: DragEndEvent) {
-  //   const issueId = String(e.active.id);
-  //   const overId = e.over?.id ? String(e.over.id) : null;
-  //   if (!overId) return;
+  const activeIssue = useMemo(() => {
+    if (!activeId) return null;
+    return issuesList.find((i) => i.id === activeId) ?? null;
+  }, [activeId, issuesList]);
 
-  //   const nextStatus = overId as IssueStatus;
-  //   const current = (data ?? []).find((i) => i.id === issueId);
-  //   if (!current || current.status === nextStatus) return;
-
-  //   moveMut.mutate({ issueId, status: nextStatus });
-  // }
+  useHotkeys((e) => {
+    if (e.key !== "Escape") return;
+    if (isTypingTarget(e.target)) return; // ✅ tránh ăn Esc khi đang gõ trong input/textarea
+    e.preventDefault();
+    if (selected) setSelected(null);
+  });
 
   function onDragStart(e: DragStartEvent) {
     setActiveId(String(e.active.id));
@@ -95,24 +86,24 @@ export function KanbanBoard({ projectId }: { projectId: string }) {
   function onDragCancel() {
     setActiveId(null);
   }
-  
-  
+
   function onDragEnd(e: DragEndEvent) {
     const issueId = String(e.active.id);
     const overId = e.over?.id ? String(e.over.id) : null;
-  
+
     setActiveId(null);
-  
+
     if (!overId) return;
+
+    // ✅ overId phải là column id (TODO/IN_PROGRESS/DONE)
     const nextStatus = overId as IssueStatus;
-    const current = (data ?? []).find((i) => i.id === issueId);
+
+    const current = issuesList.find((i) => i.id === issueId);
     if (!current || current.status === nextStatus) return;
-  
+
     moveMut.mutate({ issueId, status: nextStatus });
   }
-  
 
-  // ✅ Skeleton loading (giữ như bạn đang làm)
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -135,7 +126,6 @@ export function KanbanBoard({ projectId }: { projectId: string }) {
     );
   }
 
-  // ✅ Error state polish
   if (isError) {
     return (
       <div className="space-y-3">
@@ -174,10 +164,10 @@ export function KanbanBoard({ projectId }: { projectId: string }) {
               />
             ))}
           </div>
+
           <DragOverlay>
             {activeIssue ? (
               <div className="w-[320px]">
-                {/* reuse IssueCard UI nhưng không gắn draggable */}
                 <Card className="p-3 shadow-lg">
                   <div className="text-sm font-medium">{activeIssue.title}</div>
                   <div className="mt-2 flex gap-2">

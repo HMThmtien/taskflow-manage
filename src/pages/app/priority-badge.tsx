@@ -1,13 +1,13 @@
 import { ArrowDown, ArrowRight, ArrowUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-export type Priority = "low" | "medium" | "high";
+export type Priority = "LOW" | "MEDIUM" | "HIGH";
 
 export function PriorityBadge({ priority }: { priority: Priority }) {
   const meta =
-    priority === "high"
+    priority === "HIGH"
       ? { label: "High", Icon: ArrowUp, cls: "bg-destructive/10 text-destructive border-destructive/20" }
-      : priority === "low"
+      : priority === "LOW"
         ? { label: "Low", Icon: ArrowDown, cls: "bg-emerald-500/10 text-emerald-700 border-emerald-500/20" }
         : { label: "Medium", Icon: ArrowRight, cls: "bg-amber-500/10 text-amber-700 border-amber-500/20" };
 

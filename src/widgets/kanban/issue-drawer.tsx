@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { type Issue, type IssueStatus } from "@/features/issues/api/issues.api";
+import { type Issue, type IssuePriority, type IssueStatus } from "@/features/issues/api/issues.api";
 import { useUpdateIssueMutation } from "@/features/issues/api/issues.queries";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
@@ -8,23 +8,21 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-
 import { StatusPill } from "@/pages/app/status-pill";
 import { PriorityBadge } from "@/pages/app/priority-badge";
 
+
 const statusOptions: { value: IssueStatus; label: string }[] = [
-  { value: "todo", label: "Todo" },
-  { value: "in_progress", label: "In Progress" },
-  { value: "done", label: "Done" },
+  { value: "TODO", label: "Todo" },
+  { value: "IN_PROGRESS", label: "In Progress" },
+  { value: "DONE", label: "Done" },
 ];
 
-const priorityOptions = [
-  { value: "low", label: "Low" },
-  { value: "medium", label: "Medium" },
-  { value: "high", label: "High" },
-] as const;
-
-type Priority = (typeof priorityOptions)[number]["value"];
+const priorityOptions: { value: IssuePriority; label: string }[] = [
+  { value: "LOW", label: "Low" },
+  { value: "MEDIUM", label: "Medium" },
+  { value: "HIGH", label: "High" },
+];
 
 export function IssueDrawer({
   projectId,
@@ -44,8 +42,8 @@ export function IssueDrawer({
     () => ({
       title: issue?.title ?? "",
       description: issue?.description ?? "",
-      status: (issue?.status ?? "todo") as IssueStatus,
-      priority: ((issue as any)?.priority ?? "medium") as Priority, // nếu Issue type đã có priority thì bỏ any
+      status: (issue?.status ?? "TODO") as IssueStatus,
+      priority: (issue?.priority ?? "MEDIUM") as IssuePriority,
     }),
     [issue]
   );
@@ -53,7 +51,7 @@ export function IssueDrawer({
   const [title, setTitle] = useState(initial.title);
   const [description, setDescription] = useState(initial.description);
   const [status, setStatus] = useState<IssueStatus>(initial.status);
-  const [priority, setPriority] = useState<Priority>(initial.priority);
+  const [priority, setPriority] = useState<IssuePriority>(initial.priority);
 
   useEffect(() => {
     setTitle(initial.title);
@@ -65,14 +63,13 @@ export function IssueDrawer({
   const dirty =
     title.trim() !== (issue?.title ?? "") ||
     (description ?? "") !== (issue?.description ?? "") ||
-    status !== (issue?.status ?? "todo") ||
-    priority !== (((issue as any)?.priority ?? "medium") as Priority);
+    status !== (issue?.status ?? "TODO") ||
+    priority !== (issue?.priority ?? "MEDIUM");
 
   return (
     <Sheet
       open={open}
       onOpenChange={(v) => {
-        // khi đóng drawer, reset state về initial để lần mở sau sạch
         if (!v) {
           setTitle(initial.title);
           setDescription(initial.description);
@@ -86,7 +83,7 @@ export function IssueDrawer({
         <SheetHeader>
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <SheetTitle className="truncate">{issue ? "Issue" : "Issue"}</SheetTitle>
+              <SheetTitle className="truncate">Issue</SheetTitle>
               {issue ? (
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <StatusPill status={status} />
@@ -94,15 +91,6 @@ export function IssueDrawer({
                 </div>
               ) : null}
             </div>
-
-            {/* <Button
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              className="shrink-0"
-              type="button"
-            >
-              Close
-            </Button> */}
           </div>
         </SheetHeader>
 
@@ -134,7 +122,7 @@ export function IssueDrawer({
 
               <div className="space-y-2">
                 <div className="text-xs font-medium text-muted-foreground">Priority</div>
-                <Select value={priority} onValueChange={(v) => setPriority(v as Priority)}>
+                <Select value={priority} onValueChange={(v) => setPriority(v as IssuePriority)}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select priority" />
                   </SelectTrigger>
@@ -166,14 +154,20 @@ export function IssueDrawer({
                 disabled={!dirty || updateMut.isPending}
                 onClick={async () => {
                   try {
-                    await updateMut.mutateAsync({
-                      issueId: issue.id,
+                    const payload = {
                       title: title.trim(),
                       description: description.trim() || undefined,
                       status,
-                      // nếu backend/mock của bạn đã hỗ trợ priority update:
-                      // priority,
-                    } as any);
+                      priority,
+                    };
+
+                    // ✅ kiểu 1: mutation nhận { issueId, payload }
+                    await updateMut.mutateAsync({ issueId: issue.id, payload });
+
+                    // ❗ Nếu mutation của bạn đang nhận kiểu 2: { issueId, ...fields }
+                    // thì đổi dòng trên thành:
+                    // await updateMut.mutateAsync({ issueId: issue.id, ...payload });
+
                     toast({ title: "Saved" });
                     onOpenChange(false);
                   } catch (e: any) {

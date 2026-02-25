@@ -11,11 +11,10 @@ export function IssueCard({ issue, onClick }: { issue: Issue; onClick: () => voi
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: issue.id,
   });
-
-const style = transform
-  ? { transform: CSS.Translate.toString(transform) }
-  : undefined;
-
+  
+  const style: React.CSSProperties | undefined = transform
+    ? { transform: CSS.Transform.toString(transform) }
+    : undefined;
 
   return (
     <Card
@@ -23,10 +22,9 @@ const style = transform
       style={style}
       className={cn(
         "group relative w-full p-3 transition-colors hover:bg-accent/40",
-        isDragging && "opacity-0" // hoặc "opacity-20" nếu muốn còn bóng mờ
+        // khi kéo, card gốc biến mất để tránh trùng với overlay
+        isDragging && "opacity-0"
       )}
-      
-      
       onClick={onClick}
       role="button"
     >
@@ -43,13 +41,11 @@ const style = transform
         </button>
 
         <div className="min-w-0 flex-1">
-          {/* Title row + hover action */}
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <div className="text-sm font-medium truncate">{issue.title}</div>
             </div>
 
-            {/* Open icon (hover) */}
             <button
               type="button"
               className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-foreground"
@@ -63,13 +59,11 @@ const style = transform
             </button>
           </div>
 
-          {/* Badges */}
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <StatusPill status={issue.status} />
             <PriorityBadge priority={issue.priority} />
           </div>
 
-          {/* Description */}
           <div className="mt-2 text-xs text-muted-foreground line-clamp-2">
             {issue.description?.trim() ? issue.description : "No description"}
           </div>

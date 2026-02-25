@@ -1,54 +1,60 @@
-import { fetchJson } from "@/services/api/client";
+import { authFetchJson } from "@/services/api/client";
 
-export type IssueStatus = "todo" | "in_progress" | "done";
+export type IssueStatus = "TODO" | "IN_PROGRESS" | "DONE";
+export type IssuePriority = "LOW" | "MEDIUM" | "HIGH";
 
 export type Issue = {
   id: string;
-  projectId: string;
+  projectId: string; // nếu BE IssueResponse không trả field này thì bạn có thể bỏ
   title: string;
   description?: string;
   status: IssueStatus;
-  priority: "low" | "medium" | "high";
+  priority: IssuePriority;
   createdAt: string;
-  updatedAt: string;
 };
 
-export function getIssues(projectId: string) {
-  return fetchJson<Issue[]>(`/api/projects/${projectId}/issues`);
+export type IssueListParams = {
+  q?: string;
+  status?: IssueStatus;
+  priority?: IssuePriority;
+};
+
+export function getIssues(projectId: string, params: IssueListParams = {}) {
+  const sp = new URLSearchParams();
+  if (params.q) sp.set("q", params.q);
+  if (params.status) sp.set("status", params.status);
+  if (params.priority) sp.set("priority", params.priority);
+
+  const qs = sp.toString();
+  return authFetchJson<Issue[]>(
+    `/api/projects/${projectId}/issues${qs ? `?${qs}` : ""}`
+  );
 }
 
-export function moveIssue(payload: { issueId: string; status: IssueStatus }) {
-  return fetchJson<Issue>(`/api/issues/${payload.issueId}`, {
-    method: "PATCH",
-    body: JSON.stringify({ status: payload.status }),
+export function createIssue(
+  projectId: string,
+  payload: { title: string; description?: string; priority: IssuePriority; status?: IssueStatus }
+) {
+  return authFetchJson<Issue>(`/api/projects/${projectId}/issues`, {
+    method: "POST",
+    body: JSON.stringify(payload),
   });
 }
 
-export function updateIssue(payload: {
-    issueId: string;
-    title?: string;
-    description?: string;
-    status?: IssueStatus;
-  }) {
-    return fetchJson<Issue>(`/api/issues/${payload.issueId}`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        title: payload.title,
-        description: payload.description,
-        status: payload.status,
-      }),
-    });
-  }
-  
-  export function createIssue(payload: {
-    projectId: string;
-    title: string;
-    description?: string;
-    priority?: "low" | "medium" | "high";
-  }) {
-    return fetchJson<Issue>("/api/issues", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-  }
-  
+export function updateIssue(
+  projectId: string,
+  issueId: string,
+  payload: { title?: string; description?: string; status?: IssueStatus; priority?: IssuePriority }
+) {
+  return authFetchJson<Issue>(`/api/projects/${projectId}/issues/${issueId}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function moveIssue(projectId: string, issueId: string, payload: { status: IssueStatus }) {
+  return authFetchJson<Issue>(`/api/projects/${projectId}/issues/${issueId}/move`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
