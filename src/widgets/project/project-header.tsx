@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Project } from "@/features/projects/api/projects.api";
 
@@ -24,6 +24,13 @@ export function ProjectHeader({
             {project.name} <span className="text-muted-foreground">({project.key})</span>
           </h1>
           <p className="text-sm text-muted-foreground">{project.description ?? "No description"}</p>
+        </div>
+
+        <div className="shrink-0">
+          <Button onClick={onNewIssue} className="gap-2">
+            <Plus className="h-4 w-4" />
+            New issue
+          </Button>
         </div>
       </div>
     </div>

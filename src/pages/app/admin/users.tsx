@@ -9,18 +9,33 @@ import {
   useChangeUserRoleMutation,
 } from "@/features/admin-user/api/admin-users.queries";
 import type { GlobalRole } from "@/features/admin-user/api/admin-users.api";
+import { Badge } from "@/components/ui/badge";
+import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import {
-  Command,
-  CommandInput,
-  CommandList,
-  CommandItem,
-  CommandEmpty,
-} from "@/components/ui/command";
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
 
 const roleOptions: { value: GlobalRole; label: string; hint: string }[] = [
   { value: "USER", label: "USER", hint: "Normal user" },
   { value: "ADMIN", label: "ADMIN", hint: "System administrator" },
 ];
+
+function RolePill({ role }: { role: GlobalRole | "UNKNOWN" }) {
+  const variant = role === "ADMIN" ? "destructive" : role === "USER" ? "secondary" : "outline";
+  return (
+    <Badge variant={variant as any} className="font-medium">
+      {role === "UNKNOWN" ? "Unknown" : role}
+    </Badge>
+  );
+}
 
 export default function AdminUsersPage() {
   const { toast } = useToast();
@@ -30,9 +45,15 @@ export default function AdminUsersPage() {
   const [username, setUsername] = useState("");
   const [role, setRole] = useState<GlobalRole>("USER");
 
+  // current role of selected user (from autocomplete result)
+  const [currentRole, setCurrentRole] = useState<GlobalRole | "UNKNOWN">("UNKNOWN");
+
   // search (autocomplete)
   const [search, setSearch] = useState("");
   const [debounced, setDebounced] = useState("");
+
+  // confirm dialog
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   // ✅ debounce 250ms
   useEffect(() => {
@@ -43,48 +64,117 @@ export default function AdminUsersPage() {
   const usersQ = useAdminUsersAutocompleteQuery(debounced);
   const users = usersQ.data?.content ?? [];
 
-  const disabled = mut.isPending;
+  // ✅ TODO: thay bằng flag từ backend (ví dụ: myRoleQ.data?.role === "SUPER_ADMIN")
+  // Nếu user không có quyền cấp ADMIN => disable option ADMIN
+  const canGrantAdmin = true;
+
   const roleHint = useMemo(() => roleOptions.find((r) => r.value === role)?.hint ?? "", [role]);
 
+  const disabledApply = mut.isPending || !username.trim() || (role === "ADMIN" && !canGrantAdmin);
+
+  const reset = () => {
+    setUsername("");
+    setSearch("");
+    setDebounced("");
+    setRole("USER");
+    setCurrentRole("UNKNOWN");
+  };
+
+  const doApply = async () => {
+    const u = username.trim();
+    if (!u) {
+      toast({ title: "Invalid", description: "Username không được trống", variant: "destructive" });
+      return;
+    }
+
+    if (role === "ADMIN" && !canGrantAdmin) {
+      toast({ title: "Forbidden", description: "Bạn không có quyền cấp ADMIN", variant: "destructive" });
+      return;
+    }
+
+    try {
+      await mut.mutateAsync({ username: u, role });
+      toast({ title: "Updated", description: `${u} → ${role}` });
+      reset();
+    } catch (e: any) {
+      toast({
+        title: "Update failed",
+        description: e?.message ?? "Unknown error",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const onClickApply = async () => {
+    const u = username.trim();
+    if (!u) return;
+
+    // ✅ Confirm only when promoting to ADMIN (high-risk)
+    const isPromoteToAdmin = role === "ADMIN" && currentRole !== "ADMIN";
+    if (isPromoteToAdmin) {
+      setConfirmOpen(true);
+      return;
+    }
+    await doApply();
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="mx-auto w-full max-w-4xl space-y-6">
+      {/* Header */}
       <div className="space-y-1">
         <div className="flex items-center gap-2">
           <ShieldCheck className="h-5 w-5" />
           <h1 className="text-xl font-semibold">Admin · User Roles</h1>
+          <Badge variant="outline" className="ml-1">
+            Security
+          </Badge>
         </div>
         <p className="text-sm text-muted-foreground">
-          Promote/Demote user bằng username (PATCH /api/admin/users/&lt;username&gt;/role?role=...)
+          Search a user, review their current role, and apply a new role.
         </p>
       </div>
 
-      <Card className="p-5 space-y-4">
-        <div className="grid gap-4 md:grid-cols-3">
-          {/* Username autocomplete */}
-          <div className="space-y-1.5 md:col-span-1">
-            <div className="text-xs font-medium text-muted-foreground">Username</div>
+      <Card className="p-6 space-y-6">
+        <div className="grid gap-5 md:grid-cols-2">
+          {/* User search */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="text-sm font-medium">User</div>
+              {usersQ.isFetching ? (
+                <div className="text-xs text-muted-foreground flex items-center gap-2">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Searching…
+                </div>
+              ) : null}
+            </div>
 
             <Card className="p-0 overflow-hidden">
-              {/* server-side search => shouldFilter={false} */}
               <Command shouldFilter={false}>
                 <CommandInput
                   value={search}
                   onValueChange={(v) => {
                     setSearch(v);
-                    setUsername(v); // ✅ vẫn cho nhập tự do
+                    setUsername(v); // ✅ allow free text
+                    setCurrentRole("UNKNOWN"); // typing => unknown
                   }}
                   placeholder="Type username to search…"
                 />
 
-                <CommandList className="max-h-[260px] overflow-y-auto">
-                  {usersQ.isLoading ? (
-                    <div className="p-3 text-sm text-muted-foreground flex items-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Loading...
+                {/* fixed height => no layout jumping */}
+                <CommandList className="h-[260px] overflow-y-auto">
+                  {!search.trim() ? (
+                    <div className="p-3 text-sm text-muted-foreground">
+                      Start typing to search users…
                     </div>
                   ) : null}
 
-                  {/* chỉ hiện empty khi đã gõ */}
+                  {usersQ.isLoading ? (
+                    <div className="p-3 text-sm text-muted-foreground flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Loading…
+                    </div>
+                  ) : null}
+
                   {debounced.trim() ? <CommandEmpty>No users found</CommandEmpty> : null}
 
                   {users.map((u) => (
@@ -94,12 +184,15 @@ export default function AdminUsersPage() {
                       onSelect={() => {
                         setUsername(u.username);
                         setSearch(u.username);
-                        setRole(u.role); // ✅ tiện: chọn user tự fill role hiện tại
+                        setCurrentRole(u.role); // ✅ store current role
+                        setRole(u.role); // ✅ autofill new role = current role (optional)
                       }}
                     >
-                      <div className="flex items-center justify-between w-full">
-                        <span className="truncate">{u.username}</span>
-                        <span className="text-xs text-muted-foreground">{u.role}</span>
+                      <div className="flex items-center justify-between w-full gap-3">
+                        <span className="truncate font-medium">{u.username}</span>
+                        <Badge variant={u.role === "ADMIN" ? "destructive" : "secondary"} className="shrink-0">
+                          {u.role}
+                        </Badge>
                       </div>
                     </CommandItem>
                   ))}
@@ -107,76 +200,125 @@ export default function AdminUsersPage() {
               </Command>
             </Card>
 
-            <div className="text-xs text-muted-foreground">
-              Chọn từ danh sách hoặc gõ thẳng username (list giới hạn 15).
+            {/* Selected preview */}
+            <div className="rounded-lg border bg-muted/30 px-3 py-2 text-sm">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-muted-foreground">Selected</span>
+                <span className="font-medium truncate">{username.trim() || "—"}</span>
+              </div>
             </div>
           </div>
 
-          {/* Role select */}
-          <div className="space-y-1.5 md:col-span-1">
-            <div className="text-xs font-medium text-muted-foreground">Role</div>
-            <Select value={role} onValueChange={(v) => setRole(v as GlobalRole)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select role" />
-              </SelectTrigger>
-              <SelectContent>
-                {roleOptions.map((r) => (
-                  <SelectItem key={r.value} value={r.value}>
-                    <div className="flex flex-col">
-                      <span>{r.label}</span>
-                      <span className="text-xs text-muted-foreground">{r.hint}</span>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <div className="text-xs text-muted-foreground">{roleHint}</div>
-          </div>
+          {/* Role */}
+          <div className="space-y-2">
+            <div className="text-sm font-medium">Role</div>
 
-          {/* Apply */}
-          <div className="flex items-end md:col-span-1">
-            <Button
-              className="w-full"
-              disabled={disabled}
-              onClick={async () => {
-                const u = username.trim();
-                if (!u) {
-                  toast({ title: "Invalid", description: "Username không được trống", variant: "destructive" });
-                  return;
-                }
+            <div className="rounded-xl border p-4 space-y-3">
+              <Select value={role} onValueChange={(v) => setRole(v as GlobalRole)}>
+                <SelectTrigger className="h-11">
+                  <SelectValue placeholder="Select role" />
+                </SelectTrigger>
 
-                try {
-                  await mut.mutateAsync({ username: u, role });
-                  toast({ title: "Updated", description: `${u} → ${role}` });
-                  // giữ search lại cũng được, nhưng mình reset cho sạch
-                  setUsername("");
-                  setSearch("");
-                  setRole("USER");
-                } catch (e: any) {
-                  toast({
-                    title: "Update failed",
-                    description: e?.message ?? "Unknown error",
-                    variant: "destructive",
-                  });
-                }
-              }}
-            >
-              {mut.isPending ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Applying...
-                </>
-              ) : (
-                "Apply"
-              )}
-            </Button>
+                <SelectContent>
+                  {roleOptions.map((r) => {
+                    const isAdmin = r.value === "ADMIN";
+                    const disabled = isAdmin && !canGrantAdmin;
+
+                    return (
+                      <SelectItem key={r.value} value={r.value} disabled={disabled}>
+                        <div className="flex flex-col">
+                          <span className="font-medium">{r.label}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {disabled ? "You don't have permission to grant ADMIN" : r.hint}
+                          </span>
+                        </div>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+
+              {/* Current -> New */}
+              <div className="rounded-lg border bg-background px-3 py-2">
+                <div className="text-xs text-muted-foreground mb-2">Change preview</div>
+                <div className="flex items-center gap-2 text-sm">
+                  <RolePill role={currentRole} />
+                  <span className="text-muted-foreground">→</span>
+                  <RolePill role={role} />
+                </div>
+              </div>
+
+              <div className="text-sm text-muted-foreground">
+                {roleHint ? (
+                  <>
+                    <span className="font-medium text-foreground">{role}</span> — {roleHint}
+                  </>
+                ) : (
+                  "Choose a role for the selected user."
+                )}
+              </div>
+            </div>
+
+            <div className="text-xs text-muted-foreground">
+              Tip: Selecting a user auto-fills their current role.
+            </div>
           </div>
         </div>
 
-        <div className="text-xs text-muted-foreground">
-          Tip: gõ “hm” sẽ gọi list users, pick user rồi đổi role cực nhanh.
+        {/* Actions */}
+        <div className="flex items-center justify-between gap-3 border-t pt-5">
+          <Button variant="outline" onClick={reset} disabled={mut.isPending}>
+            Reset
+          </Button>
+
+          <Button className="min-w-[200px]" disabled={disabledApply} onClick={onClickApply}>
+            {mut.isPending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Applying...
+              </>
+            ) : (
+              "Apply changes"
+            )}
+          </Button>
         </div>
       </Card>
+
+      {/* Confirm promote to ADMIN */}
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm admin access</AlertDialogTitle>
+            <AlertDialogDescription>
+              You’re about to grant <span className="font-medium text-foreground">ADMIN</span> role to{" "}
+              <span className="font-medium text-foreground">{username.trim() || "this user"}</span>.
+              This gives elevated permissions and should be done carefully.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <div className="rounded-lg border bg-muted/30 px-3 py-2 text-sm">
+            <div className="text-xs text-muted-foreground mb-2">Change preview</div>
+            <div className="flex items-center gap-2">
+              <RolePill role={currentRole} />
+              <span className="text-muted-foreground">→</span>
+              <RolePill role="ADMIN" />
+            </div>
+          </div>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={mut.isPending}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={mut.isPending}
+              onClick={async () => {
+                setConfirmOpen(false);
+                await doApply();
+              }}
+            >
+              Confirm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

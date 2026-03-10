@@ -42,47 +42,51 @@ export default function LoginPage() {
     [mode]
   );
 
-  const onSubmit = async () => {
-    try {
-      setLoading(true);
+// 1) đổi onSubmit để nhận event form (optional nhưng nên có)
+const onSubmit = async (e?: React.FormEvent) => {
+  e?.preventDefault();
+  if (loading) return;
 
-      const u = username.trim();
-      if (!u) {
-        toast({ title: "Invalid username", description: "Username không được trống.", variant: "destructive" });
-        return;
-      }
-      if (!password) {
-        toast({ title: "Invalid password", description: "Password không được trống.", variant: "destructive" });
-        return;
-      }
+  try {
+    setLoading(true);
 
-      if (mode === "register") {
-        if (password !== confirmPassword) {
-          toast({
-            title: "Password mismatch",
-            description: "Confirm password không khớp.",
-            variant: "destructive",
-          });
-          return;
-        }
-        await register({ username: u, password });
-        toast({ title: "Registered", description: "Tạo tài khoản thành công." });
-      } else {
-        await login({ username: u, password });
-        toast({ title: "Signed in", description: "Đăng nhập thành công." });
-      }
-
-      nav("/app/dashboard", { replace: true });
-    } catch (e: any) {
-      toast({
-        title: "Error",
-        description: e?.message ?? "Something went wrong",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
+    const u = username.trim();
+    if (!u) {
+      toast({ title: "Invalid username", description: "Username không được trống.", variant: "destructive" });
+      return;
     }
-  };
+    if (!password) {
+      toast({ title: "Invalid password", description: "Password không được trống.", variant: "destructive" });
+      return;
+    }
+
+    if (mode === "register") {
+      if (password !== confirmPassword) {
+        toast({
+          title: "Password mismatch",
+          description: "Confirm password không khớp.",
+          variant: "destructive",
+        });
+        return;
+      }
+      await register({ username: u, password });
+      toast({ title: "Registered", description: "Tạo tài khoản thành công." });
+    } else {
+      await login({ username: u, password });
+      toast({ title: "Signed in", description: "Đăng nhập thành công." });
+    }
+
+    nav("/app/dashboard", { replace: true });
+  } catch (e: any) {
+    toast({
+      title: "Error",
+      description: e?.message ?? "Something went wrong",
+      variant: "destructive",
+    });
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="min-h-screen bg-background text-foreground flex items-center justify-center p-6 relative overflow-hidden">
@@ -115,72 +119,66 @@ export default function LoginPage() {
               <AnimatePresence mode="wait">
                 {mode === "login" ? (
                   <TabsContent key="login" value="login" forceMount asChild>
-                    <motion.div variants={cardVariants} initial="hidden" animate="show" exit="exit" className="space-y-3">
-                      <Input
-                        value={username}
-                        onChange={(e) => setUsername(e.target.value)}
-                        placeholder="Username"
-                        autoComplete="username"
-                      />
-                      <Input
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="Password"
-                        type="password"
-                        autoComplete="current-password"
-                      />
+                    {/* 2) bọc bằng form */}
+                    <form onSubmit={onSubmit}>
+                      <motion.div variants={cardVariants} initial="hidden" animate="show" exit="exit" className="space-y-3">
+                        <Input
+                          value={username}
+                          onChange={(e) => setUsername(e.target.value)}
+                          placeholder="Username"
+                          autoComplete="username"
+                        />
+                        <Input
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          placeholder="Password"
+                          type="password"
+                          autoComplete="current-password"
+                        />
 
-                      <Button
-                        className="w-full relative overflow-hidden"
-                        disabled={loading}
-                        onClick={onSubmit}
-                      >
-                        <span className="relative z-10">{loading ? "Signing in..." : "Sign in"}</span>
-                        <span className="absolute inset-0 opacity-20 bg-gradient-to-r from-sky-500 to-indigo-600" />
-                      </Button>
-
-                      <p className="text-xs text-muted-foreground text-center">
-                        Tip: dùng account bạn vừa tạo ở Postman để login.
-                      </p>
-                    </motion.div>
+                        {/* 3) button submit, Enter sẽ submit form */}
+                        <Button className="w-full relative overflow-hidden" disabled={loading} type="submit">
+                          <span className="relative z-10">{loading ? "Signing in..." : "Sign in"}</span>
+                          <span className="absolute inset-0 opacity-20 bg-gradient-to-r from-sky-500 to-indigo-600" />
+                        </Button>
+                      </motion.div>
+                    </form>
                   </TabsContent>
                 ) : (
                   <TabsContent key="register" value="register" forceMount asChild>
-                    <motion.div variants={cardVariants} initial="hidden" animate="show" exit="exit" className="space-y-3">
-                      <Input
-                        value={username}
-                        onChange={(e) => setUsername(e.target.value)}
-                        placeholder="Username"
-                        autoComplete="username"
-                      />
-                      <Input
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        placeholder="Password"
-                        type="password"
-                        autoComplete="new-password"
-                      />
-                      <Input
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        placeholder="Confirm password"
-                        type="password"
-                        autoComplete="new-password"
-                      />
+                    <form onSubmit={onSubmit}>
+                      <motion.div variants={cardVariants} initial="hidden" animate="show" exit="exit" className="space-y-3">
+                        <Input
+                          value={username}
+                          onChange={(e) => setUsername(e.target.value)}
+                          placeholder="Username"
+                          autoComplete="username"
+                        />
+                        <Input
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          placeholder="Password"
+                          type="password"
+                          autoComplete="new-password"
+                        />
+                        <Input
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          placeholder="Confirm password"
+                          type="password"
+                          autoComplete="new-password"
+                        />
 
-                      <Button
-                        className="w-full relative overflow-hidden"
-                        disabled={loading}
-                        onClick={onSubmit}
-                      >
-                        <span className="relative z-10">{loading ? "Creating..." : "Create account"}</span>
-                        <span className="absolute inset-0 opacity-20 bg-gradient-to-r from-fuchsia-500 to-rose-600" />
-                      </Button>
+                        <Button className="w-full relative overflow-hidden" disabled={loading} type="submit">
+                          <span className="relative z-10">{loading ? "Creating..." : "Create account"}</span>
+                          <span className="absolute inset-0 opacity-20 bg-gradient-to-r from-fuchsia-500 to-rose-600" />
+                        </Button>
 
-                      <p className="text-xs text-muted-foreground text-center">
-                        By creating an account, you’ll be signed in automatically.
-                      </p>
-                    </motion.div>
+                        <p className="text-xs text-muted-foreground text-center">
+                          By creating an account, you’ll be signed in automatically.
+                        </p>
+                      </motion.div>
+                    </form>
                   </TabsContent>
                 )}
               </AnimatePresence>

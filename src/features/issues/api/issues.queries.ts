@@ -5,18 +5,18 @@ import {
   moveIssue,
   updateIssue,
   type IssueListParams,
-  type Issue,
   type IssueStatus,
-  type IssuePriority,
+  type CreateIssuePayload,
+  type UpdateIssuePayload,
 } from "./issues.api";
 
 export const issueKeys = {
   all: ["issues"] as const,
   project: (projectId: string) => [...issueKeys.all, projectId] as const,
-  list: (projectId: string, params: IssueListParams) => [...issueKeys.project(projectId), "list", params] as const,
+  list: (projectId: string, params: IssueListParams) =>
+    [...issueKeys.project(projectId), "list", params] as const,
 };
 
-// ✅ Query vẫn nhận params để server filter
 export function useIssuesQuery(projectId: string, params: IssueListParams) {
   return useQuery({
     queryKey: issueKeys.list(projectId, params),
@@ -25,14 +25,11 @@ export function useIssuesQuery(projectId: string, params: IssueListParams) {
   });
 }
 
-// ✅ Mutation KHÔNG cần params nữa
 export function useCreateIssueMutation(projectId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (payload: { title: string; description?: string; priority: IssuePriority }) =>
-      createIssue(projectId, payload),
+    mutationFn: (payload: CreateIssuePayload) => createIssue(projectId, payload),
     onSuccess: () => {
-      // invalidate mọi list issues của project này (mọi filter)
       qc.invalidateQueries({ queryKey: issueKeys.project(projectId) });
     },
   });
@@ -41,14 +38,8 @@ export function useCreateIssueMutation(projectId: string) {
 export function useUpdateIssueMutation(projectId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({
-      issueId,
-      payload,
-    }: {
-      issueId: string;
-      payload: Partial<Pick<Issue, "title" | "description" | "status" | "priority">>;
-    }) => updateIssue(projectId, issueId, payload), // ✅ sửa ở đây
-
+    mutationFn: ({ issueId, payload }: { issueId: string; payload: UpdateIssuePayload }) =>
+      updateIssue(projectId, issueId, payload),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: issueKeys.project(projectId) });
     },
@@ -59,8 +50,7 @@ export function useMoveIssueMutation(projectId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ issueId, status }: { issueId: string; status: IssueStatus }) =>
-      moveIssue(projectId, issueId, { status }), // ✅ sửa ở đây
-
+      moveIssue(projectId, issueId, { status }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: issueKeys.project(projectId) });
     },

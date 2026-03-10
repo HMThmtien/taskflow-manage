@@ -4,8 +4,6 @@ import {
   getAdminUsers,
   type GlobalRole,
   type ListAdminUsersParams,
-  type Page,
-  type AdminUser,
 } from "./admin-users.api";
 
 export const adminUsersKeys = {

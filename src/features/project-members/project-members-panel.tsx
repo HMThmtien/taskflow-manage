@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   useAddProjectMemberMutation,
   useMyProjectRoleQuery,
@@ -6,9 +6,11 @@ import {
   useRemoveProjectMemberMutation,
   useUpdateProjectMemberRoleMutation,
 } from "@/features/project-members/api/project-members.queries";
-import { type ProjectRole, type ProjectMember } from "@/features/project-members/api/project-members.api";
+import type { ProjectMember, ProjectRole } from "@/features/project-members/api/project-members.api";
+
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -17,11 +19,14 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
+
 import { Shield, ShieldCheck, User, Eye, Loader2, Trash2, Plus } from "lucide-react";
+
+import { useAdminUsersAutocompleteQuery } from "../admin-user/api/admin-users.queries";
+import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 
 const roleOptions: { value: ProjectRole; label: string; icon: any; hint: string }[] = [
   { value: "OWNER", label: "Owner", icon: ShieldCheck, hint: "Full control" },
@@ -33,8 +38,12 @@ const roleOptions: { value: ProjectRole; label: string; icon: any; hint: string 
 function RoleBadge({ role }: { role: ProjectRole }) {
   const r = roleOptions.find((x) => x.value === role);
   const Icon = r?.icon ?? User;
+
+  const variant =
+    role === "OWNER" ? "destructive" : role === "ADMIN" ? "default" : role === "MEMBER" ? "secondary" : "outline";
+
   return (
-    <Badge variant="secondary" className="inline-flex items-center gap-1.5">
+    <Badge variant={variant as any} className="inline-flex items-center gap-1.5 font-medium">
       <Icon className="h-3.5 w-3.5" />
       {role}
     </Badge>
@@ -54,13 +63,32 @@ export function ProjectMembersPanel({ projectId }: { projectId: string }) {
   const myRole = myRoleQ.data?.role;
   const myUserId = myRoleQ.data?.userId;
 
-  // Rule UI: OWNER/ADMIN mới được quản lý member
+  // OWNER/ADMIN mới được quản lý member
   const canManage = myRole === "OWNER" || myRole === "ADMIN";
 
   // Add dialog
   const [addOpen, setAddOpen] = useState(false);
   const [username, setUsername] = useState("");
   const [role, setRole] = useState<ProjectRole>("MEMBER");
+
+  // search (autocomplete)
+  const [search, setSearch] = useState("");
+  const [debounced, setDebounced] = useState("");
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(search), 250);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const usersQ = useAdminUsersAutocompleteQuery(addOpen ? debounced : "");
+  const users = usersQ.data?.content ?? [];
+
+  const resetAddForm = () => {
+    setUsername("");
+    setSearch("");
+    setDebounced("");
+    setRole("MEMBER");
+  };
 
   // Remove dialog
   const [removeOpen, setRemoveOpen] = useState(false);
@@ -76,57 +104,114 @@ export function ProjectMembersPanel({ projectId }: { projectId: string }) {
   const disableOwnerChange = (m: ProjectMember) => m.role === "OWNER";
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <div className="text-lg font-semibold">Members</div>
-            <Badge variant="outline">{membersQ.isLoading ? "…" : rows.length}</Badge>
+            <ShieldCheck className="h-5 w-5 text-primary" />
+            <h2 className="text-xl font-semibold tracking-tight">Project Members</h2>
+            <Badge variant="secondary">{membersQ.isLoading ? "…" : rows.length}</Badge>
           </div>
-          <div className="text-sm text-muted-foreground">
-            Quản lý quyền trong project (OWNER / ADMIN / MEMBER / VIEWER)
-          </div>
+          <p className="text-sm text-muted-foreground">Manage access levels and permissions within this project.</p>
         </div>
 
         <div className="flex items-center gap-2">
           {canManage ? (
-            <Dialog open={addOpen} onOpenChange={setAddOpen}>
+            <Dialog
+              open={addOpen}
+              onOpenChange={(open) => {
+                setAddOpen(open);
+                if (!open) resetAddForm();
+              }}
+            >
               <DialogTrigger asChild>
-                <Button className="gap-2">
+                <Button className="gap-2 shadow-sm">
                   <Plus className="h-4 w-4" />
                   Add member
                 </Button>
               </DialogTrigger>
 
-              <DialogContent className="sm:max-w-[520px]">
+              <DialogContent className="sm:max-w-[760px] md:max-w-[860px] max-h-[80vh] overflow-hidden">
                 <DialogHeader>
                   <DialogTitle>Add member</DialogTitle>
                 </DialogHeader>
 
-                <div className="space-y-4">
-                  <div className="space-y-1.5">
-                    <div className="text-xs font-medium text-muted-foreground">Username</div>
-                    <Input
-                      value={username}
-                      onChange={(e) => setUsername(e.target.value)}
-                      placeholder="e.g. hmt2"
-                      autoFocus
-                    />
-                    <div className="text-xs text-muted-foreground">
-                      Nhập username để add member (theo API của bạn).
-                    </div>
+                {/* Body scroll (prevents dialog jumping) */}
+                <div className="space-y-5 max-h-[calc(80vh-120px)] overflow-y-auto pr-1">
+                  {/* Username autocomplete */}
+                  <div className="space-y-2">
+                    <div className="text-sm font-medium">Username</div>
+
+                    <Card className="p-0 overflow-hidden">
+                      <Command shouldFilter={false}>
+                        <CommandInput
+                          value={search}
+                          onValueChange={(v) => {
+                            setSearch(v);
+                            setUsername(v); // free text allowed
+                          }}
+                          placeholder="Type username to search…"
+                        />
+
+                        {/* fixed height -> no layout shift */}
+                        <CommandList className="h-[260px] overflow-y-auto">
+                          {!search.trim() ? (
+                            <div className="p-3 text-sm text-muted-foreground">Start typing to search users…</div>
+                          ) : null}
+
+                          {usersQ.isLoading ? (
+                            <div className="p-3 text-sm text-muted-foreground flex items-center gap-2">
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Loading...
+                            </div>
+                          ) : null}
+
+                          {debounced.trim() ? <CommandEmpty>No users found</CommandEmpty> : null}
+
+                          {users.map((u) => (
+                            <CommandItem
+                              key={u.id ?? u.username}
+                              value={u.username}
+                              onSelect={() => {
+                                setUsername(u.username);
+                                setSearch(u.username);
+                              }}
+                            >
+                              <div className="flex items-center justify-between w-full gap-3">
+                                <span className="truncate font-medium">{u.username}</span>
+                                <Badge variant={u.role === "ADMIN" ? "destructive" : "secondary"} className="shrink-0">
+                                  {u.role}
+                                </Badge>
+                              </div>
+                            </CommandItem>
+                          ))}
+                        </CommandList>
+                      </Command>
+                    </Card>
+
+                    {username.trim() ? (
+                      <div className="rounded-lg border bg-muted/30 px-3 py-2 text-sm flex items-center justify-between">
+                        <span className="text-muted-foreground">Selected</span>
+                        <span className="font-medium truncate">{username.trim()}</span>
+                      </div>
+                    ) : (
+                      <div className="text-xs text-muted-foreground">
+                        Enter a username to add (server-side search).
+                      </div>
+                    )}
                   </div>
 
-                  <div className="space-y-1.5">
-                    <div className="text-xs font-medium text-muted-foreground">Role</div>
+                  {/* Role select */}
+                  <div className="space-y-2">
+                    <div className="text-sm font-medium">Role</div>
                     <Select value={role} onValueChange={(v) => setRole(v as ProjectRole)}>
-                      <SelectTrigger>
+                      <SelectTrigger className="h-11">
                         <SelectValue placeholder="Select role" />
                       </SelectTrigger>
                       <SelectContent>
                         {roleOptions
-                          .filter((r) => r.value !== "OWNER") // thường không cho add OWNER
+                          .filter((r) => r.value !== "OWNER") // usually don't allow adding OWNER
                           .map((r) => {
                             const Icon = r.icon;
                             return (
@@ -134,7 +219,7 @@ export function ProjectMembersPanel({ projectId }: { projectId: string }) {
                                 <div className="flex items-center gap-2">
                                   <Icon className="h-4 w-4" />
                                   <div className="flex flex-col">
-                                    <span>{r.label}</span>
+                                    <span className="font-medium">{r.label}</span>
                                     <span className="text-xs text-muted-foreground">{r.hint}</span>
                                   </div>
                                 </div>
@@ -149,11 +234,15 @@ export function ProjectMembersPanel({ projectId }: { projectId: string }) {
                 <DialogFooter className="gap-2 sm:gap-0">
                   <Button
                     variant="outline"
-                    onClick={() => setAddOpen(false)}
+                    onClick={() => {
+                      setAddOpen(false);
+                      resetAddForm();
+                    }}
                     disabled={addMut.isPending}
                   >
                     Cancel
                   </Button>
+
                   <Button
                     disabled={addMut.isPending}
                     onClick={async () => {
@@ -169,9 +258,8 @@ export function ProjectMembersPanel({ projectId }: { projectId: string }) {
                         }
                         await addMut.mutateAsync({ username: u, role });
                         toast({ title: "Added" });
-                        setUsername("");
-                        setRole("MEMBER");
                         setAddOpen(false);
+                        resetAddForm();
                       } catch (e: any) {
                         toast({
                           title: "Add failed",
@@ -200,8 +288,7 @@ export function ProjectMembersPanel({ projectId }: { projectId: string }) {
       </div>
 
       {/* Content */}
-      <div className="overflow-hidden rounded-xl border bg-card">
-        {/* Loading */}
+      <div className="rounded-xl border bg-card shadow-sm overflow-hidden">
         {membersQ.isLoading ? (
           <div className="p-6 text-sm text-muted-foreground flex items-center gap-2">
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -215,9 +302,9 @@ export function ProjectMembersPanel({ projectId }: { projectId: string }) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[360px]" >User</TableHead>
-                <TableHead className="w-[160px]">Role</TableHead>
-                <TableHead className="w-[260px] text-right">Actions</TableHead>
+                <TableHead className="w-[360px]">User</TableHead>
+                <TableHead className="w-[200px]">Role</TableHead>
+                <TableHead className="w-[140px] text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
 
@@ -226,11 +313,15 @@ export function ProjectMembersPanel({ projectId }: { projectId: string }) {
                 const isMe = myUserId && m.userId === myUserId;
 
                 return (
-                  <TableRow key={m.userId} className="hover:bg-muted/40">
+                  <TableRow key={m.userId} className="hover:bg-muted/40 transition-colors">
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
-                        <span>{m.username}</span>
-                        {isMe ? <Badge variant="outline" className="text-xs">you</Badge> : null}
+                        <span className="truncate">{m.username}</span>
+                        {isMe ? (
+                          <Badge variant="outline" className="text-xs">
+                            you
+                          </Badge>
+                        ) : null}
                       </div>
                     </TableCell>
 
@@ -238,16 +329,14 @@ export function ProjectMembersPanel({ projectId }: { projectId: string }) {
                       {canManage && !disableOwnerChange(m) ? (
                         <Select
                           value={m.role}
-                          onValueChange={(v) =>
-                            updateRoleMut.mutate({ userId: m.userId, role: v as ProjectRole })
-                          }
+                          onValueChange={(v) => updateRoleMut.mutate({ userId: m.userId, role: v as ProjectRole })}
                         >
-                          <SelectTrigger className="w-[240px]">
+                          <SelectTrigger className="w-[240px] h-10">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
                             {roleOptions
-                              .filter((r) => r.value !== "OWNER") // thường không cho promote OWNER
+                              .filter((r) => r.value !== "OWNER") // usually don't allow promote OWNER
                               .map((r) => {
                                 const Icon = r.icon;
                                 return (
@@ -255,7 +344,7 @@ export function ProjectMembersPanel({ projectId }: { projectId: string }) {
                                     <div className="flex items-center gap-2">
                                       <Icon className="h-4 w-4" />
                                       <div className="flex flex-col">
-                                        <span>{r.label}</span>
+                                        <span className="font-medium">{r.label}</span>
                                         <span className="text-xs text-muted-foreground">{r.hint}</span>
                                       </div>
                                     </div>
@@ -272,8 +361,8 @@ export function ProjectMembersPanel({ projectId }: { projectId: string }) {
                     <TableCell className="text-right">
                       {canManage && !disableOwnerChange(m) ? (
                         <Button
-                          variant="outline"
-                          size="sm"
+                          variant="ghost"
+                          size="icon"
                           className="text-destructive hover:text-destructive"
                           onClick={() => {
                             setRemoveTarget(m);
@@ -281,8 +370,7 @@ export function ProjectMembersPanel({ projectId }: { projectId: string }) {
                           }}
                           disabled={removeMut.isPending}
                         >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          Remove
+                          <Trash2 className="h-4 w-4" />
                         </Button>
                       ) : (
                         <span className="text-xs text-muted-foreground">—</span>
@@ -294,8 +382,12 @@ export function ProjectMembersPanel({ projectId }: { projectId: string }) {
 
               {rows.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={3} className="py-10 text-center text-sm text-muted-foreground">
-                    No members
+                  <TableCell colSpan={3} className="py-16 text-center">
+                    <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                      <User className="h-6 w-6 opacity-40" />
+                      <p className="text-sm font-medium">No members yet</p>
+                      <p className="text-xs">Add team members to collaborate on this project.</p>
+                    </div>
                   </TableCell>
                 </TableRow>
               ) : null}

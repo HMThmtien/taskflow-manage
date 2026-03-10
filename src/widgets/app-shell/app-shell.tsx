@@ -4,13 +4,25 @@ import { Topbar } from "@/widgets/app-shell/topbar";
 
 export function AppShell() {
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      <div className="flex">
-        <Sidebar />
-        <div className="flex min-h-screen flex-1 flex-col">
-          <Topbar />
-          <main className="flex-1 p-6">
-            <Outlet />
+    <div className="h-screen overflow-hidden bg-[radial-gradient(1000px_circle_at_50%_-20%,hsl(var(--primary)/0.18),transparent_60%),linear-gradient(to_bottom,hsl(var(--background)),hsl(var(--background)))] text-foreground">
+      <div className="flex h-full">
+        {/* Sidebar */}
+        <aside className="h-full shrink-0 overflow-y-auto border-r bg-card/60 backdrop-blur supports-[backdrop-filter]:bg-card/40">
+          <Sidebar />
+        </aside>
+
+        {/* Main */}
+        <div className="flex h-full flex-1 flex-col">
+          {/* Topbar (fixed within main column) */}
+          <div className="shrink-0 border-b bg-background/70 backdrop-blur supports-[backdrop-filter]:bg-background/40">
+            <Topbar />
+          </div>
+
+          {/* Scroll content */}
+          <main className="flex-1 overflow-y-auto">
+            <div className="p-6">
+              <Outlet />
+            </div>
           </main>
         </div>
       </div>

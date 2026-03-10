@@ -12,6 +12,7 @@ type AuthState = {
   tokens: Tokens | null;
   login: (payload: { username: string; password: string }) => Promise<void>;
   register: (payload: { username: string; password: string }) => Promise<void>;
+  loadMe: () => Promise<void>;
   logout: () => void;
   isAuthed: () => boolean;
 };
@@ -46,6 +47,29 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const tokens = res.data;
     localStorage.setItem(TOKENS_KEY, JSON.stringify(tokens));
     set({ tokens });
+  },
+
+  loadMe: async () => {
+    const tokens = get().tokens;
+    if (!tokens?.accessToken) return;
+
+    try {
+      const res = await fetchJson<{
+        data: { id: string; username: string; role: string };
+      }>(`/api/auth/me`);
+
+      const updated: Tokens = {
+        ...tokens,
+        username: res.data.username,
+        role: res.data.role,
+      };
+
+      localStorage.setItem(TOKENS_KEY, JSON.stringify(updated));
+      set({ tokens: updated });
+    } catch {
+      // token hết hạn → logout
+      get().logout();
+    }
   },
 
   logout: () => {
