@@ -15,13 +15,21 @@ type PageResponse<T> = {
   totalPages: number;
 };
 
+export type MentionedUser = {
+  id: string;
+  username: string;
+  fullName?: string | null;
+};
+
 export type IssueComment = {
   id: string;
   issueId: string;
   authorId: string;
   authorUsername: string;
+  authorFullName?: string | null;
   content: string;
   createdAt: string;
+  mentions?: MentionedUser[];
 };
 
 export function useIssueComments(issueId: string | null, enabled = true) {

@@ -3,6 +3,8 @@ import { authFetchJson } from "@/services/api/client";
 export type IssueStatus = "TODO" | "IN_PROGRESS" | "DONE";
 export type IssuePriority = "LOW" | "MEDIUM" | "HIGH";
 
+export type IssueType = "TASK" | "BUG" | "STORY" | "EPIC" | "SUBTASK";
+
 export type Issue = {
   id: string;
   projectId: string;
@@ -10,6 +12,9 @@ export type Issue = {
   description?: string | null;
   status: IssueStatus;
   priority: IssuePriority;
+  type: IssueType;
+  parentIssueId?: string | null;
+  parentIssueTitle?: string | null;
   position: number;
   reporterId?: string | null;
   reporterUsername?: string | null;
@@ -63,9 +68,10 @@ export type CreateIssuePayload = {
   description?: string;
   priority?: IssuePriority;
   status?: IssueStatus;
-
+  type?: IssueType;
+  parentIssueId?: string;
   assigneeId?: string;
-  dueDate?: string;   // yyyy-mm-dd
+  dueDate?: string;
   labels?: string[];
 };
 

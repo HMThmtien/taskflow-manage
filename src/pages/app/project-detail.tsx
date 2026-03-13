@@ -22,22 +22,19 @@ export default function ProjectDetailPage() {
   const { projectId } = useParams();
   const [params, setParams] = useSearchParams();
 
-  // ✅ keep tab in URL
   const tabFromUrl = useMemo(() => normalizeTab(params.get("tab")), [params]);
   const [tab, setTab] = useState<TabKey>(tabFromUrl);
 
   useEffect(() => {
-    // sync internal state if user uses back/forward
     setTab(tabFromUrl);
   }, [tabFromUrl]);
 
   const [openCreate, setOpenCreate] = useState(false);
 
-  // ✅ Always call hook (use "" when missing)
   const safeProjectId = projectId ?? "";
-  const { data: project, isLoading, isError, error, refetch, isFetching } = useProjectQuery(safeProjectId);
+  const { data: project, isLoading, isError, error, refetch, isFetching } =
+    useProjectQuery(safeProjectId);
 
-  // Hotkeys: Esc always closes dialog. N and / only for Board.
   useHotkeys((e) => {
     if (e.key === "Escape") {
       if (openCreate) {
@@ -60,16 +57,13 @@ export default function ProjectDetailPage() {
       e.preventDefault();
       const el = document.getElementById("issue-search") as HTMLInputElement | null;
       el?.focus();
-      return;
     }
   });
 
-  // Close create dialog when leaving board
   useEffect(() => {
     if (tab !== "board" && openCreate) setOpenCreate(false);
   }, [tab, openCreate]);
 
-  // If projectId missing -> render nothing (route misconfig)
   if (!projectId) return null;
 
   function setTabAndUrl(next: TabKey) {
@@ -86,7 +80,9 @@ export default function ProjectDetailPage() {
           <CardTitle className="text-sm font-medium">Failed to load project</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="text-sm text-muted-foreground">{(error as Error)?.message ?? "Unknown error"}</div>
+          <div className="text-sm text-muted-foreground">
+            {(error as Error)?.message ?? "Unknown error"}
+          </div>
           <Button variant="outline" onClick={() => refetch()} disabled={isFetching}>
             <RefreshCcw className={`mr-2 h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
             Retry
@@ -179,9 +175,12 @@ export default function ProjectDetailPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Only mount dialog when relevant */}
       {tab === "board" ? (
-        <CreateIssueDialog projectId={projectId} open={openCreate} onOpenChange={setOpenCreate} />
+        <CreateIssueDialog
+          projectId={projectId}
+          open={openCreate}
+          onOpenChange={setOpenCreate}
+        />
       ) : null}
     </div>
   );

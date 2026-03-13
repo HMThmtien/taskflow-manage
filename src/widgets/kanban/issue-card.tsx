@@ -1,6 +1,13 @@
 import { useDraggable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { Calendar, ExternalLink, GripVertical, Tag } from "lucide-react";
+import {
+  Calendar,
+  ExternalLink,
+  GripVertical,
+  Paperclip,
+  Tag,
+  GitBranch,
+} from "lucide-react";
 import { type Issue } from "@/features/issues/api/issues.api";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -8,6 +15,7 @@ import { PriorityBadge } from "@/pages/app/priority-badge";
 import { StatusPill } from "@/pages/app/status-pill";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { IssueTypeBadge } from "@/widgets/issues/issue-type-badge";
 
 function formatIssueKey(projectKey: string, issueId: string) {
   const s = String(issueId);
@@ -17,13 +25,15 @@ function formatIssueKey(projectKey: string, issueId: string) {
 
 function initials(name?: string | null) {
   const parts = (name ?? "").trim().split(/\s+/).filter(Boolean);
-  const x = parts.slice(0, 2).map((p) => p[0]?.toUpperCase()).join("");
+  const x = parts
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase())
+    .join("");
   return x || "U";
 }
 
 function formatDue(d?: string | null) {
   if (!d) return null;
-  // Expect yyyy-mm-dd (from API), fallback to Date parse.
   if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d;
   const dt = new Date(d);
   if (isNaN(dt.getTime())) return null;
@@ -41,12 +51,15 @@ export function IssueCard({
   projectKey: string;
   assigneeName?: string | null;
 }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: issue.id,
-  });
-  
+  const { attributes, listeners, setNodeRef, transform, isDragging } =
+    useDraggable({
+      id: issue.id,
+    });
+
   const style: React.CSSProperties | undefined =
-  isDragging && transform ? { transform: CSS.Transform.toString(transform) } : undefined;
+    isDragging && transform
+      ? { transform: CSS.Transform.toString(transform) }
+      : undefined;
 
   const key = formatIssueKey(projectKey, issue.id);
   const due = formatDue(issue.dueDate ?? null);
@@ -54,14 +67,14 @@ export function IssueCard({
   const displayLabels = labels.slice(0, 2);
   const extraLabels = labels.length - displayLabels.length;
 
+  const isSubtask = issue.type === "SUBTASK";
+
   return (
     <Card
       ref={setNodeRef}
       style={style}
       className={cn(
-        "group relative block w-full max-w-full",
-        "box-border",                 // ✅ tránh co do border/padding
-        "shrink-0",                    // ✅ không bị flex shrink
+        "group relative block w-full max-w-full box-border shrink-0",
         "p-3 transition-colors hover:bg-accent/40",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
         isDragging && "opacity-0"
@@ -71,7 +84,6 @@ export function IssueCard({
       tabIndex={0}
     >
       <div className="flex items-start gap-2">
-        {/* Drag handle ONLY */}
         <button
           type="button"
           className="mt-0.5 text-muted-foreground hover:text-foreground cursor-grab active:cursor-grabbing"
@@ -85,12 +97,22 @@ export function IssueCard({
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <div className="flex items-center gap-2 min-w-0">
+              <div className="flex items-center gap-2 min-w-0 flex-wrap">
                 <span className="text-[11px] font-medium text-muted-foreground rounded border px-1.5 py-0.5 shrink-0">
                   {key}
                 </span>
+
+                <IssueTypeBadge type={issue.type} />
+
                 <div className="text-sm font-medium truncate">{issue.title}</div>
               </div>
+
+              {isSubtask && issue.parentIssueTitle ? (
+                <div className="mt-1 inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+                  <GitBranch className="h-3 w-3" />
+                  <span className="truncate">Subtask of {issue.parentIssueTitle}</span>
+                </div>
+              ) : null}
             </div>
 
             <button
@@ -113,7 +135,9 @@ export function IssueCard({
             {assigneeName ? (
               <span className="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs">
                 <Avatar className="h-4 w-4">
-                  <AvatarFallback className="text-[9px]">{initials(assigneeName)}</AvatarFallback>
+                  <AvatarFallback className="text-[9px]">
+                    {initials(assigneeName)}
+                  </AvatarFallback>
                 </Avatar>
                 <span className="max-w-[140px] truncate">{assigneeName}</span>
               </span>
@@ -134,7 +158,11 @@ export function IssueCard({
                 Labels
               </span>
               {displayLabels.map((lb) => (
-                <Badge key={lb} variant="outline" className="text-[11px] px-2 py-0.5">
+                <Badge
+                  key={lb}
+                  variant="outline"
+                  className="text-[11px] px-2 py-0.5"
+                >
                   {lb}
                 </Badge>
               ))}
@@ -148,6 +176,25 @@ export function IssueCard({
 
           <div className="mt-2 text-xs text-muted-foreground line-clamp-2">
             {issue.description?.trim() ? issue.description : "No description"}
+          </div>
+
+          <div className="mt-3 flex items-center gap-3 text-[11px] text-muted-foreground">
+            {isSubtask ? (
+              <span className="inline-flex items-center gap-1">
+                <GitBranch className="h-3 w-3" />
+                Subtask
+              </span>
+            ) : null}
+
+            {/* placeholder cho attachments nếu sau này issue summary có count */}
+            {"attachmentCount" in issue &&
+            typeof (issue as any).attachmentCount === "number" &&
+            (issue as any).attachmentCount > 0 ? (
+              <span className="inline-flex items-center gap-1">
+                <Paperclip className="h-3 w-3" />
+                {(issue as any).attachmentCount}
+              </span>
+            ) : null}
           </div>
         </div>
       </div>

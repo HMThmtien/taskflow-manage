@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { type Issue, type IssuePriority, type IssueStatus } from "@/features/issues/api/issues.api";
 import { useUpdateIssueMutation } from "@/features/issues/api/issues.queries";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -13,10 +13,22 @@ import { PriorityBadge } from "@/pages/app/priority-badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CalendarClock, MessageSquareText, Save } from "lucide-react";
+import { CalendarClock, MessageSquareText, Save, Paperclip, GitBranch } from "lucide-react";
 
 import { useIssueComments, useCreateComment } from "@/features/issues/api/useIssueComments";
 import { useIssueActivities } from "@/features/issues/api/useIssueActivities";
+import { useSubtasksQuery } from "@/features/issues/api/subtasks.queries";
+import {
+  useAttachmentsQuery,
+  useDeleteAttachmentMutation,
+  useUploadAttachmentMutation,
+} from "@/features/issues/api/attachments.queries";
+import { DatePickerField } from "@/components/ui/date-picker-field";
+import { AttachmentList } from "@/widgets/issues/attachment-list";
+import { AttachmentUpload } from "@/widgets/issues/attachment-upload";
+import { SubtaskList } from "@/widgets/issues/subtask-list";
+import { CommentEditor } from "@/widgets/issues/comment-editor";
+import { IssueTypeBadge } from "@/widgets/issues/issue-type-badge";
 
 type Member = { userId: string; username: string };
 
@@ -79,13 +91,7 @@ function ActivityCard({
         })
         .filter(Boolean)
     : typeof n.field === "string"
-      ? [
-          {
-            field: String(n.field),
-            from: n.from ?? n.old,
-            to: n.to ?? n.new,
-          },
-        ]
+      ? [{ field: String(n.field), from: n.from ?? n.old, to: n.to ?? n.new }]
       : [];
 
   const hasStructured = changes.length > 0;
@@ -133,6 +139,8 @@ function ActivityCard({
   );
 }
 
+type DrawerTab = "details" | "comments" | "activity" | "subtasks" | "attachments";
+
 export function IssueDrawer({
   projectId,
   issue,
@@ -144,7 +152,7 @@ export function IssueDrawer({
   issue: Issue | null;
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  members?: Member[]; // ✅ pass members in
+  members?: Member[];
 }) {
   const { toast } = useToast();
   const updateMut = useUpdateIssueMutation(projectId);
@@ -155,7 +163,6 @@ export function IssueDrawer({
       description: issue?.description ?? "",
       status: (issue?.status ?? "TODO") as IssueStatus,
       priority: (issue?.priority ?? "MEDIUM") as IssuePriority,
-
       assigneeId: issue?.assigneeId ?? "",
       dueDate: issue?.dueDate ?? "",
       labels: issue?.labels ?? [],
@@ -163,26 +170,26 @@ export function IssueDrawer({
     [issue]
   );
 
-  const [tab, setTab] = useState<"details" | "comments" | "activity">("details");
+  const [tab, setTab] = useState<DrawerTab>("details");
 
   const [title, setTitle] = useState(initial.title);
   const [description, setDescription] = useState(initial.description);
   const [status, setStatus] = useState<IssueStatus>(initial.status);
   const [priority, setPriority] = useState<IssuePriority>(initial.priority);
-
-  // ✅ NEW local states
   const [assigneeId, setAssigneeId] = useState<string>(initial.assigneeId);
   const [dueDate, setDueDate] = useState<string>(initial.dueDate);
   const [labels, setLabels] = useState<string[]>(initial.labels);
   const [labelInput, setLabelInput] = useState("");
 
-  // Comments/activity
-  const issueId = issue?.id ?? null;
-  const commentsQ = useIssueComments(issueId, open && tab === "comments");
-  const activitiesQ = useIssueActivities(issueId, open && tab === "activity");
-  const createCommentMut = useCreateComment(issue?.id ?? "");
+  const issueId = issue?.id ?? "";
+  const commentsQ = useIssueComments(issueId || null, open && tab === "comments");
+  const activitiesQ = useIssueActivities(issueId || null, open && tab === "activity");
+  const createCommentMut = useCreateComment(issueId);
 
-  const [commentText, setCommentText] = useState("");
+  const subtasksQ = useSubtasksQuery(projectId, issueId);
+  const attachmentsQ = useAttachmentsQuery(issueId);
+  const uploadAttachmentMut = useUploadAttachmentMutation(issueId);
+  const deleteAttachmentMut = useDeleteAttachmentMutation(issueId);
 
   function errMsg(e: unknown) {
     if (e instanceof Error) return e.message || "Unknown error";
@@ -225,337 +232,413 @@ export function IssueDrawer({
           setLabels(initial.labels);
           setLabelInput("");
           setTab("details");
-          setCommentText("");
         }
         onOpenChange(v);
       }}
     >
-      <SheetContent className="w-[420px] sm:w-[560px] p-0">
+      <SheetContent className="w-[420px] sm:w-[620px] p-0">
         <div className="flex h-full flex-col">
           <div className="p-6 pb-4">
             <SheetHeader>
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0">
-              <SheetTitle className="truncate">Issue</SheetTitle>
-              {issue ? (
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <StatusPill status={status} />
-                  <PriorityBadge priority={priority} />
-                  {issue.reporterUsername ? (
-                    <span className="text-xs text-muted-foreground">Reporter: {issue.reporterUsername}</span>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <SheetTitle className="truncate">Issue</SheetTitle>
+                  {issue ? (
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <IssueTypeBadge type={issue.type} />
+                      <StatusPill status={status} />
+                      <PriorityBadge priority={priority} />
+                      {issue.reporterUsername ? (
+                        <span className="text-xs text-muted-foreground">
+                          Reporter: {issue.reporterUsername}
+                        </span>
+                      ) : null}
+                    </div>
                   ) : null}
                 </div>
-              ) : null}
-            </div>
-          </div>
+              </div>
             </SheetHeader>
           </div>
 
-        {!issue ? (
-          <div className="px-6 pb-6 text-sm text-muted-foreground">No issue selected</div>
-        ) : (
-          <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-24">
-            <Tabs value={tab} onValueChange={(v) => setTab(v as "details" | "comments" | "activity")}>
-              <TabsList className="grid grid-cols-3 w-full">
-                <TabsTrigger value="details">Details</TabsTrigger>
-                <TabsTrigger value="comments">Comments</TabsTrigger>
-                <TabsTrigger value="activity">Activity</TabsTrigger>
-              </TabsList>
+          {!issue ? (
+            <div className="px-6 pb-6 text-sm text-muted-foreground">No issue selected</div>
+          ) : (
+            <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-24">
+              <Tabs value={tab} onValueChange={(v) => setTab(v as DrawerTab)}>
+                <TabsList className="grid grid-cols-5 w-full">
+                  <TabsTrigger value="details">Details</TabsTrigger>
+                  <TabsTrigger value="comments">Comments</TabsTrigger>
+                  <TabsTrigger value="activity">Activity</TabsTrigger>
+                  <TabsTrigger value="subtasks">Subtasks</TabsTrigger>
+                  <TabsTrigger value="attachments">Files</TabsTrigger>
+                </TabsList>
 
-              {/* DETAILS */}
-              <TabsContent value="details">
-                <div className="space-y-5 pt-4">
-                  <div className="space-y-2">
-                    <div className="text-xs font-medium text-muted-foreground">Title</div>
-                    <Input value={title} onChange={(e) => setTitle(e.target.value)} />
+                <TabsContent value="details">
+                  <div className="space-y-5 pt-4">
+                    <div className="space-y-2">
+                      <div className="text-xs font-medium text-muted-foreground">Title</div>
+                      <Input value={title} onChange={(e) => setTitle(e.target.value)} />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <div className="text-xs font-medium text-muted-foreground">Status</div>
+                        <Select value={status} onValueChange={(v) => setStatus(v as IssueStatus)}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select status" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {statusOptions.map((o) => (
+                              <SelectItem key={o.value} value={o.value}>
+                                {o.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="text-xs font-medium text-muted-foreground">Priority</div>
+                        <Select value={priority} onValueChange={(v) => setPriority(v as IssuePriority)}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select priority" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {priorityOptions.map((o) => (
+                              <SelectItem key={o.value} value={o.value}>
+                                {o.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <div className="text-xs font-medium text-muted-foreground">Assignee</div>
+                        <Select
+                          value={assigneeId || "none"}
+                          onValueChange={(v) => setAssigneeId(v === "none" ? "" : v)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select assignee" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">Unassigned</SelectItem>
+                            {(members ?? []).map((m) => (
+                              <SelectItem key={m.userId} value={m.userId}>
+                                {m.username}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="text-xs font-medium text-muted-foreground">Due date</div>
+                        <DatePickerField
+                          value={dueDate || ""}
+                          onChange={setDueDate}
+                          placeholder="Pick due date"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="text-xs font-medium text-muted-foreground">Labels</div>
+
+                      <div className="flex gap-2">
+                        <Input
+                          value={labelInput}
+                          onChange={(e) => setLabelInput(e.target.value)}
+                          placeholder="Add label (press Enter)"
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              addLabel();
+                            }
+                          }}
+                        />
+                        <Button type="button" variant="outline" onClick={addLabel} disabled={!labelInput.trim()}>
+                          Add
+                        </Button>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2">
+                        {labels.map((lb) => (
+                          <Badge
+                            key={lb}
+                            className="cursor-pointer"
+                            title="Click to remove"
+                            onClick={() => removeLabel(lb)}
+                          >
+                            {lb}
+                          </Badge>
+                        ))}
+                        {labels.length === 0 ? (
+                          <div className="text-xs text-muted-foreground">No labels</div>
+                        ) : null}
+                      </div>
+                    </div>
+
+                    <Separator />
+
+                    <div className="space-y-2">
+                      <div className="text-xs font-medium text-muted-foreground">Description</div>
+                      <Textarea
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                        rows={8}
+                        placeholder="Add details…"
+                      />
+                    </div>
                   </div>
+                </TabsContent>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <div className="text-xs font-medium text-muted-foreground">Status</div>
-                      <Select value={status} onValueChange={(v) => setStatus(v as IssueStatus)}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {statusOptions.map((o) => (
-                            <SelectItem key={o.value} value={o.value}>
-                              {o.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                <TabsContent value="comments">
+                  <div className="space-y-4 pt-4">
+                    <CommentEditor
+                      isSubmitting={createCommentMut.isPending}
+                      onSubmit={async (content) => {
+                        try {
+                          await createCommentMut.mutateAsync(content);
+                          toast({ title: "Comment added" });
+                        } catch (e: unknown) {
+                          toast({
+                            title: "Failed",
+                            description: errMsg(e),
+                            variant: "destructive",
+                          });
+                        }
+                      }}
+                    />
 
-                    <div className="space-y-2">
-                      <div className="text-xs font-medium text-muted-foreground">Priority</div>
-                      <Select value={priority} onValueChange={(v) => setPriority(v as IssuePriority)}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select priority" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {priorityOptions.map((o) => (
-                            <SelectItem key={o.value} value={o.value}>
-                              {o.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                    <Separator />
+
+                    {commentsQ.isLoading ? (
+                      <div className="space-y-3">
+                        {Array.from({ length: 3 }).map((_, i) => (
+                          <div key={i} className="rounded-lg border p-3">
+                            <div className="flex items-center justify-between">
+                              <Skeleton className="h-4 w-24" />
+                              <Skeleton className="h-3 w-28" />
+                            </div>
+                            <Skeleton className="mt-3 h-4 w-full" />
+                            <Skeleton className="mt-2 h-4 w-5/6" />
+                          </div>
+                        ))}
+                      </div>
+                    ) : commentsQ.isError ? (
+                      <div className="text-sm text-destructive">Failed to load comments</div>
+                    ) : (commentsQ.data ?? []).length === 0 ? (
+                      <div className="text-sm text-muted-foreground">No comments yet</div>
+                    ) : (
+                      <div className="space-y-3">
+                        {commentsQ.data!.map((c: any) => (
+                          <div key={c.id} className="rounded-lg border p-3">
+                            <div className="flex items-center justify-between">
+                              <div className="text-sm font-medium">{c.authorUsername}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {new Date(c.createdAt).toLocaleString()}
+                              </div>
+                            </div>
+                            <div className="mt-2 text-sm whitespace-pre-wrap">{c.content}</div>
+
+                            {c.mentions?.length ? (
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                {c.mentions.map((m: any) => (
+                                  <Badge key={m.id} variant="outline" className="text-[11px]">
+                                    @{m.username}
+                                  </Badge>
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
+                </TabsContent>
 
-                  {/* ✅ NEW: assignee + due date */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-2">
-                      <div className="text-xs font-medium text-muted-foreground">Assignee</div>
-                      <Select value={assigneeId || "none"} onValueChange={(v) => setAssigneeId(v === "none" ? "" : v)}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select assignee" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">Unassigned</SelectItem>
-                          {(members ?? []).map((m) => (
-                            <SelectItem key={m.userId} value={m.userId}>
-                              {m.username}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="text-xs font-medium text-muted-foreground">Due date</div>
-                      <Input type="date" value={dueDate || ""} onChange={(e) => setDueDate(e.target.value)} />
-                    </div>
+                <TabsContent value="activity">
+                  <div className="space-y-4 pt-4">
+                    {activitiesQ.isLoading ? (
+                      <div className="space-y-3">
+                        {Array.from({ length: 4 }).map((_, i) => (
+                          <div key={i} className="rounded-lg border p-3">
+                            <div className="flex items-center justify-between">
+                              <Skeleton className="h-4 w-40" />
+                              <Skeleton className="h-4 w-16" />
+                            </div>
+                            <Skeleton className="mt-3 h-4 w-full" />
+                            <Skeleton className="mt-2 h-4 w-2/3" />
+                          </div>
+                        ))}
+                      </div>
+                    ) : activitiesQ.isError ? (
+                      <div className="text-sm text-destructive">Failed to load activity</div>
+                    ) : (activitiesQ.data ?? []).length === 0 ? (
+                      <div className="text-sm text-muted-foreground">No activity yet</div>
+                    ) : (
+                      <div className="space-y-3">
+                        {activitiesQ.data!.map((a: any) => (
+                          <ActivityCard
+                            key={a.id}
+                            actor={a.actorUsername}
+                            type={a.type}
+                            createdAt={a.createdAt}
+                            payload={a.payload}
+                          />
+                        ))}
+                      </div>
+                    )}
                   </div>
+                </TabsContent>
 
-                  {/* ✅ NEW: labels */}
-                  <div className="space-y-2">
-                    <div className="text-xs font-medium text-muted-foreground">Labels</div>
+                <TabsContent value="subtasks">
+                  <div className="space-y-4 pt-4">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <GitBranch className="h-4 w-4" />
+                      Subtasks
+                    </div>
 
-                    <div className="flex gap-2">
-                      <Input
-                        value={labelInput}
-                        onChange={(e) => setLabelInput(e.target.value)}
-                        placeholder="Add label (press Enter)"
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            addLabel();
+                    {subtasksQ.isLoading ? (
+                      <div className="space-y-3">
+                        {Array.from({ length: 3 }).map((_, i) => (
+                          <Skeleton key={i} className="h-16 w-full" />
+                        ))}
+                      </div>
+                    ) : subtasksQ.isError ? (
+                      <div className="text-sm text-destructive">Failed to load subtasks</div>
+                    ) : (
+                      <SubtaskList items={subtasksQ.data ?? []} />
+                    )}
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="attachments">
+                  <div className="space-y-4 pt-4">
+                    <div className="flex items-center gap-2 text-sm font-medium">
+                      <Paperclip className="h-4 w-4" />
+                      Attachments
+                    </div>
+
+                    <AttachmentUpload
+                      disabled={uploadAttachmentMut.isPending}
+                      onSelect={async (file) => {
+                        try {
+                          await uploadAttachmentMut.mutateAsync(file);
+                          toast({ title: "Attachment uploaded" });
+                        } catch (e: unknown) {
+                          toast({
+                            title: "Upload failed",
+                            description: errMsg(e),
+                            variant: "destructive",
+                          });
+                        }
+                      }}
+                    />
+
+                    {attachmentsQ.isLoading ? (
+                      <div className="space-y-3">
+                        {Array.from({ length: 3 }).map((_, i) => (
+                          <Skeleton key={i} className="h-16 w-full" />
+                        ))}
+                      </div>
+                    ) : attachmentsQ.isError ? (
+                      <div className="text-sm text-destructive">Failed to load attachments</div>
+                    ) : (
+                      <AttachmentList
+                        items={attachmentsQ.data ?? []}
+                        baseUrl={import.meta.env.VITE_API_BASE_URL}
+                        deletingId={(deleteAttachmentMut.variables as string) ?? null}
+                        onDelete={async (attachmentId) => {
+                          try {
+                            await deleteAttachmentMut.mutateAsync(attachmentId);
+                            toast({ title: "Attachment deleted" });
+                          } catch (e: unknown) {
+                            toast({
+                              title: "Delete failed",
+                              description: errMsg(e),
+                              variant: "destructive",
+                            });
                           }
                         }}
                       />
-                      <Button type="button" variant="outline" onClick={addLabel} disabled={!labelInput.trim()}>
-                        Add
-                      </Button>
-                    </div>
-
-                    <div className="flex flex-wrap gap-2">
-                      {labels.map((lb) => (
-                        <Badge
-                          key={lb}
-                          className="cursor-pointer"
-                          title="Click to remove"
-                          onClick={() => removeLabel(lb)}
-                        >
-                          {lb}
-                        </Badge>
-                      ))}
-                      {labels.length === 0 ? (
-                        <div className="text-xs text-muted-foreground">No labels</div>
-                      ) : null}
-                    </div>
+                    )}
                   </div>
+                </TabsContent>
+              </Tabs>
+            </div>
+          )}
 
-                  <Separator />
-
-                  <div className="space-y-2">
-                    <div className="text-xs font-medium text-muted-foreground">Description</div>
-                    <Textarea
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      rows={8}
-                      placeholder="Add details…"
-                    />
-                  </div>
-
-                  <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={!dirty}
-                      onClick={() => {
-                        setTitle(initial.title);
-                        setDescription(initial.description);
-                        setStatus(initial.status);
-                        setPriority(initial.priority);
-                        setAssigneeId(initial.assigneeId);
-                        setDueDate(initial.dueDate);
-                        setLabels(initial.labels);
-                        setLabelInput("");
-                      }}
-                    >
-                      Reset
-                    </Button>
-                  </div>
-                </div>
-              </TabsContent>
-
-              {/* COMMENTS */}
-              <TabsContent value="comments">
-                <div className="space-y-4 pt-4">
-                  <div className="space-y-2">
-                    <Textarea
-                      value={commentText}
-                      onChange={(e) => setCommentText(e.target.value)}
-                      rows={3}
-                      placeholder="Write a comment…"
-                    />
-                    <Button
-                      disabled={!commentText.trim() || createCommentMut.isPending}
-                      onClick={async () => {
-                        try {
-                          await createCommentMut.mutateAsync(commentText.trim());
-                          setCommentText("");
-                          toast({ title: "Comment added" });
-                        } catch (e: unknown) {
-                          toast({ title: "Failed", description: errMsg(e), variant: "destructive" });
-                        }
-                      }}
-                    >
-                      {createCommentMut.isPending ? "Posting..." : "Post comment"}
-                    </Button>
-                  </div>
-
-                  <Separator />
-
-                  {commentsQ.isLoading ? (
-                    <div className="space-y-3">
-                      {Array.from({ length: 3 }).map((_, i) => (
-                        <div key={i} className="rounded-lg border p-3">
-                          <div className="flex items-center justify-between">
-                            <Skeleton className="h-4 w-24" />
-                            <Skeleton className="h-3 w-28" />
-                          </div>
-                          <Skeleton className="mt-3 h-4 w-full" />
-                          <Skeleton className="mt-2 h-4 w-5/6" />
-                        </div>
-                      ))}
-                    </div>
-                  ) : commentsQ.isError ? (
-                    <div className="text-sm text-destructive">Failed to load comments</div>
-                  ) : (commentsQ.data ?? []).length === 0 ? (
-                    <div className="text-sm text-muted-foreground">No comments yet</div>
+          {issue ? (
+            <div className="absolute bottom-0 left-0 right-0 border-t bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-xs text-muted-foreground flex items-center gap-2">
+                  {tab === "details" ? (
+                    <>
+                      <Save className="h-4 w-4" />
+                      {dirty ? "Unsaved changes" : "All changes saved"}
+                    </>
+                  ) : tab === "comments" ? (
+                    <>
+                      <MessageSquareText className="h-4 w-4" />
+                      Comments
+                    </>
+                  ) : tab === "activity" ? (
+                    <>
+                      <CalendarClock className="h-4 w-4" />
+                      Activity
+                    </>
+                  ) : tab === "subtasks" ? (
+                    <>
+                      <GitBranch className="h-4 w-4" />
+                      Subtasks
+                    </>
                   ) : (
-                    <div className="space-y-3">
-                      {commentsQ.data!.map((c) => (
-                        <div key={c.id} className="rounded-lg border p-3">
-                          <div className="flex items-center justify-between">
-                            <div className="text-sm font-medium">{c.authorUsername}</div>
-                            <div className="text-xs text-muted-foreground">
-                              {new Date(c.createdAt).toLocaleString()}
-                            </div>
-                          </div>
-                          <div className="mt-2 text-sm whitespace-pre-wrap">{c.content}</div>
-                        </div>
-                      ))}
-                    </div>
+                    <>
+                      <Paperclip className="h-4 w-4" />
+                      Attachments
+                    </>
                   )}
                 </div>
-              </TabsContent>
 
-              {/* ACTIVITY */}
-              <TabsContent value="activity">
-                <div className="space-y-4 pt-4">
-                  {activitiesQ.isLoading ? (
-                    <div className="space-y-3">
-                      {Array.from({ length: 4 }).map((_, i) => (
-                        <div key={i} className="rounded-lg border p-3">
-                          <div className="flex items-center justify-between">
-                            <Skeleton className="h-4 w-40" />
-                            <Skeleton className="h-4 w-16" />
-                          </div>
-                          <Skeleton className="mt-3 h-4 w-full" />
-                          <Skeleton className="mt-2 h-4 w-2/3" />
-                        </div>
-                      ))}
-                    </div>
-                  ) : activitiesQ.isError ? (
-                    <div className="text-sm text-destructive">Failed to load activity</div>
-                  ) : (activitiesQ.data ?? []).length === 0 ? (
-                    <div className="text-sm text-muted-foreground">No activity yet</div>
-                  ) : (
-                    <div className="space-y-3">
-                      {activitiesQ.data!.map((a) => (
-                        <ActivityCard
-                          key={a.id}
-                          actor={a.actorUsername}
-                          type={a.type}
-                          createdAt={a.createdAt}
-                          payload={a.payload}
-                        />
-                      ))}
-                    </div>
-                  )}
+                <div className="flex items-center gap-2">
+                  <Button
+                    disabled={tab !== "details" || !dirty || updateMut.isPending}
+                    onClick={async () => {
+                      if (!issue) return;
+                      try {
+                        const payload = {
+                          title: title.trim() || undefined,
+                          description: description.trim() || undefined,
+                          status,
+                          priority,
+                          assigneeId: assigneeId || undefined,
+                          dueDate: isIsoDate(dueDate) ? dueDate : dueDate || undefined,
+                          labels,
+                        };
+
+                        await updateMut.mutateAsync({ issueId: issue.id, payload });
+                        toast({ title: "Saved" });
+                        onOpenChange(false);
+                      } catch (e: unknown) {
+                        toast({
+                          title: "Save failed",
+                          description: errMsg(e),
+                          variant: "destructive",
+                        });
+                      }
+                    }}
+                  >
+                    {updateMut.isPending ? "Saving..." : "Save"}
+                  </Button>
                 </div>
-              </TabsContent>
-            </Tabs>
-          </div>
-        )}
-
-        {/* Sticky footer actions (Details only) */}
-        {issue ? (
-          <div className="absolute bottom-0 left-0 right-0 border-t bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 p-4">
-            <div className="flex items-center justify-between gap-3">
-              <div className="text-xs text-muted-foreground flex items-center gap-2">
-                {tab === "details" ? (
-                  <>
-                    <Save className="h-4 w-4" />
-                    {dirty ? "Unsaved changes" : "All changes saved"}
-                  </>
-                ) : tab === "comments" ? (
-                  <>
-                    <MessageSquareText className="h-4 w-4" />
-                    Comments
-                  </>
-                ) : (
-                  <>
-                    <CalendarClock className="h-4 w-4" />
-                    Activity
-                  </>
-                )}
-              </div>
-
-              <div className="flex items-center gap-2">
-                <Button
-                  disabled={tab !== "details" || !dirty || updateMut.isPending}
-                  onClick={async () => {
-                    if (!issue) return;
-                    try {
-                      const payload = {
-                        title: title.trim() || undefined,
-                        description: description.trim() || undefined,
-                        status,
-                        priority,
-                        assigneeId: assigneeId || undefined,
-                        dueDate: isIsoDate(dueDate) ? dueDate : dueDate || undefined,
-                        labels,
-                      };
-
-                      await updateMut.mutateAsync({ issueId: issue.id, payload });
-                      toast({ title: "Saved" });
-                      onOpenChange(false);
-                    } catch (e: unknown) {
-                      toast({ title: "Save failed", description: errMsg(e), variant: "destructive" });
-                    }
-                  }}
-                >
-                  {updateMut.isPending ? "Saving..." : "Save"}
-                </Button>
               </div>
             </div>
-          </div>
-        ) : null}
+          ) : null}
         </div>
       </SheetContent>
     </Sheet>

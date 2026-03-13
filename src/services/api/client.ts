@@ -22,9 +22,12 @@ async function refreshTokens(): Promise<Tokens> {
   const tokens = getTokens();
   if (!tokens?.refreshToken) throw new Error("No refresh token");
 
-  const res = await fetch(`/api/auth/refresh?refreshToken=${encodeURIComponent(tokens.refreshToken)}`, {
-    method: "POST",
-  });
+  const res = await fetch(
+    `/api/auth/refresh?refreshToken=${encodeURIComponent(tokens.refreshToken)}`,
+    {
+      method: "POST",
+    }
+  );
 
   if (!res.ok) throw new Error("Refresh failed");
 
@@ -46,16 +49,26 @@ async function refreshTokens(): Promise<Tokens> {
 async function parseBody<T>(res: Response): Promise<T> {
   if (res.status === 204) return undefined as T;
   const text = await res.text();
-  return (text ? (JSON.parse(text) as T) : (undefined as T));
+  return text ? (JSON.parse(text) as T) : (undefined as T);
+}
+
+function buildHeaders(init?: RequestInit): HeadersInit {
+  const headers = new Headers(init?.headers);
+  const isFormData = init?.body instanceof FormData;
+
+  if (!isFormData && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  return headers;
 }
 
 export async function fetchJson<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
+  const headers = buildHeaders(init);
+
   const res = await fetch(input, {
     ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
+    headers,
   });
 
   if (!res.ok) {
@@ -73,11 +86,12 @@ export async function fetchJson<T>(input: RequestInfo, init?: RequestInit): Prom
 export async function authFetchJson<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
   const doFetch = async () => {
     const tokens = getTokens();
-    const headers = {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-      ...(tokens?.accessToken ? { Authorization: `Bearer ${tokens.accessToken}` } : {}),
-    };
+    const headers = new Headers(buildHeaders(init));
+
+    if (tokens?.accessToken) {
+      headers.set("Authorization", `Bearer ${tokens.accessToken}`);
+    }
+
     return fetch(input, { ...init, headers });
   };
 
@@ -89,6 +103,7 @@ export async function authFetchJson<T>(input: RequestInfo, init?: RequestInit): 
         refreshInFlight = null;
       });
     }
+
     await refreshInFlight;
     res = await doFetch();
   }

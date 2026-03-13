@@ -6,21 +6,32 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Badge } from "@/components/ui/badge";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 
 import { useCreateIssueMutation } from "@/features/issues/api/issues.queries";
+import { useState } from "react";
+import { DatePickerField } from "@/components/ui/date-picker-field";
 
 const schema = z.object({
   title: z.string().min(2, "Title tối thiểu 2 ký tự"),
-  // input có thể undefined, output sẽ default thành ""
   description: z.string().optional().default(""),
-  // input có thể undefined, output sẽ default thành "MEDIUM"
   priority: z.enum(["LOW", "MEDIUM", "HIGH"]).optional().default("MEDIUM"),
+  type: z.enum(["TASK", "BUG", "STORY", "EPIC", "SUBTASK"]).optional().default("TASK"),
+  assigneeId: z.string().optional().default(""),
+  dueDate: z.string().optional().default(""),
+  labels: z.array(z.string()).optional().default([]),
 });
 
-// ✅ QUAN TRỌNG: RHF làm việc với INPUT type (trước khi Zod apply default)
 type FormValues = z.input<typeof schema>;
 
 export function CreateIssueDialog({
@@ -41,14 +52,34 @@ export function CreateIssueDialog({
       title: "",
       description: "",
       priority: "MEDIUM",
+      type: "TASK",
+      assigneeId: "",
+      dueDate: "",
+      labels: [],
     },
   });
+
+  const labels = form.watch("labels") ?? [];
+  const [labelInput, setLabelInput] = useFormLabelInput();
+
+  function resetForm() {
+    form.reset({
+      title: "",
+      description: "",
+      priority: "MEDIUM",
+      type: "TASK",
+      assigneeId: "",
+      dueDate: "",
+      labels: [],
+    });
+    setLabelInput("");
+  }
 
   return (
     <Dialog
       open={open}
       onOpenChange={(v) => {
-        if (!v) form.reset({ title: "", description: "", priority: "MEDIUM" });
+        if (!v) resetForm();
         onOpenChange(v);
       }}
     >
@@ -64,17 +95,23 @@ export function CreateIssueDialog({
               try {
                 await createMut.mutateAsync({
                   title: values.title.trim(),
-                  // values.description có thể undefined theo input type
                   description: values.description?.trim() || undefined,
-                  // values.priority có thể undefined theo input type
                   priority: values.priority ?? "MEDIUM",
+                  type: values.type ?? "TASK",
+                  assigneeId: values.assigneeId || undefined,
+                  dueDate: values.dueDate || undefined,
+                  labels: values.labels ?? [],
                 });
 
                 toast({ title: "Issue created" });
-                form.reset({ title: "", description: "", priority: "MEDIUM" });
+                resetForm();
                 onOpenChange(false);
               } catch (e: any) {
-                toast({ title: "Create failed", description: e?.message ?? "Unknown error" });
+                toast({
+                  title: "Create failed",
+                  description: e?.message ?? "Unknown error",
+                  variant: "destructive",
+                });
               }
             })}
           >
@@ -92,28 +129,123 @@ export function CreateIssueDialog({
               )}
             />
 
+            <div className="grid grid-cols-2 gap-3">
+              <FormField
+                control={form.control}
+                name="type"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Type</FormLabel>
+                    <Select value={field.value ?? "TASK"} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select type" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="TASK">Task</SelectItem>
+                        <SelectItem value="BUG">Bug</SelectItem>
+                        <SelectItem value="STORY">Story</SelectItem>
+                        <SelectItem value="EPIC">Epic</SelectItem>
+                        <SelectItem value="SUBTASK">Subtask</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="priority"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Priority</FormLabel>
+                    <Select value={field.value ?? "MEDIUM"} onValueChange={field.onChange}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select priority" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="LOW">Low</SelectItem>
+                        <SelectItem value="MEDIUM">Medium</SelectItem>
+                        <SelectItem value="HIGH">High</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+
             <FormField
               control={form.control}
-              name="priority"
+              name="dueDate"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Priority</FormLabel>
-                  <Select value={field.value ?? "MEDIUM"} onValueChange={field.onChange}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select priority" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="LOW">Low</SelectItem>
-                      <SelectItem value="MEDIUM">Medium</SelectItem>
-                      <SelectItem value="HIGH">High</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <FormLabel>Due date</FormLabel>
+                  <FormControl>
+                    <DatePickerField
+                      value={field.value ?? ""}
+                      onChange={field.onChange}
+                      placeholder="Pick due date"
+                    />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
+
+<div className="space-y-2">
+  <label className="text-sm font-medium">Labels</label>
+
+  <div className="flex gap-2">
+    <Input
+      value={labelInput}
+      onChange={(e) => setLabelInput(e.target.value)}
+      placeholder="Add label and press Enter"
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          const v = labelInput.trim();
+          if (!v) return;
+          form.setValue("labels", Array.from(new Set([...(labels ?? []), v])));
+          setLabelInput("");
+        }
+      }}
+    />
+    <Button
+      type="button"
+      variant="outline"
+      onClick={() => {
+        const v = labelInput.trim();
+        if (!v) return;
+        form.setValue("labels", Array.from(new Set([...(labels ?? []), v])));
+        setLabelInput("");
+      }}
+    >
+      Add
+    </Button>
+  </div>
+
+  <div className="flex flex-wrap gap-2">
+    {labels.map((lb) => (
+      <Badge
+        key={lb}
+        className="cursor-pointer"
+        onClick={() =>
+          form.setValue(
+            "labels",
+            labels.filter((x) => x !== lb)
+          )
+        }
+      >
+        {lb}
+      </Badge>
+    ))}
+  </div>
+</div>
 
             <FormField
               control={form.control}
@@ -137,4 +269,9 @@ export function CreateIssueDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+function useFormLabelInput() {
+  const [value, setValue] = useState("");
+  return [value, setValue] as const;
 }
