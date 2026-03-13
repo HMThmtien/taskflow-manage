@@ -58,8 +58,12 @@ export function useCreateComment(issueId: string) {
       );
       return res.data;
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["issue", issueId, "comments"] });
+    onSuccess: (comment) => {
+      qc.setQueryData<IssueComment[]>(["issue", issueId, "comments"], (current) => {
+        const items = current ?? [];
+        if (items.some((item) => item.id === comment.id)) return items;
+        return [comment, ...items];
+      });
       qc.invalidateQueries({ queryKey: ["issue", issueId, "activities"] });
     },
   });

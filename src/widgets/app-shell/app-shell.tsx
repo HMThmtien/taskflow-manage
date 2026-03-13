@@ -3,9 +3,11 @@ import { Sidebar } from "@/widgets/app-shell/sidebar";
 import { Topbar } from "@/widgets/app-shell/topbar";
 import { GlobalCommandPalette } from "@/widgets/app-shell/global-command-palette";
 import { useState } from "react";
+import { useRealtimeEvents } from "@/features/realtime/use-realtime-events";
 
 export function AppShell() {
   const [paletteOpen, setPaletteOpen] = useState(false);
+  useRealtimeEvents();
 
   return (
     <div className="h-screen overflow-hidden bg-[radial-gradient(1000px_circle_at_50%_-20%,hsl(var(--primary)/0.18),transparent_60%),linear-gradient(to_bottom,hsl(var(--background)),hsl(var(--background)))] text-foreground">

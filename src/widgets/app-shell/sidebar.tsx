@@ -16,9 +16,11 @@ import {
 
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/auth.store";
+import { useNotificationsQuery } from "@/features/notifications/api/notifications.queries";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -82,9 +84,11 @@ function SectionTitle({
 function NavItemRow({
   item,
   collapsed,
+  badge,
 }: {
   item: NavItem;
   collapsed: boolean;
+  badge?: number;
 }) {
   const Icon = item.icon;
 
@@ -118,6 +122,11 @@ function NavItemRow({
             )}
           />
           {!collapsed ? <span className="font-medium">{item.label}</span> : null}
+          {!collapsed && badge && badge > 0 ? (
+            <Badge variant="secondary" className="ml-auto min-w-5 justify-center px-1.5 text-[10px]">
+              {badge > 99 ? "99+" : badge}
+            </Badge>
+          ) : null}
         </>
       )}
     </NavLink>
@@ -138,6 +147,8 @@ export function Sidebar() {
   const username = useAuthStore((s) => s.tokens?.username);
   const logout = useAuthStore((s) => s.logout);
   const isAdmin = role === "ADMIN";
+  const notificationsQ = useNotificationsQuery({ page: 1, pageSize: 1 });
+  const unreadCount = notificationsQ.data?.unreadCount ?? 0;
 
   const [collapsed, setCollapsed] = React.useState(getInitialCollapsed);
 
@@ -215,7 +226,12 @@ export function Sidebar() {
           <div className="space-y-1">
             <SectionTitle collapsed={collapsed}>MAIN</SectionTitle>
             {mainNav.map((item) => (
-              <NavItemRow key={item.to} item={item} collapsed={collapsed} />
+              <NavItemRow
+                key={item.to}
+                item={item}
+                collapsed={collapsed}
+                badge={item.to === "/app/inbox" ? unreadCount : undefined}
+              />
             ))}
           </div>
 

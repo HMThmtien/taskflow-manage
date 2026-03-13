@@ -119,3 +119,100 @@ export async function authFetchJson<T>(input: RequestInfo, init?: RequestInit): 
 
   return parseBody<T>(res);
 }
+
+export function openAuthEventStream(
+  input: RequestInfo,
+  handlers: {
+    onEvent: (event: string, data: unknown) => void;
+    onError?: (error: Error) => void;
+    onOpen?: () => void;
+  }
+) {
+  const controller = new AbortController();
+
+  void (async () => {
+    const doFetch = async () => {
+      const tokens = getTokens();
+      const headers = new Headers();
+      headers.set("Accept", "text/event-stream");
+
+      if (tokens?.accessToken) {
+        headers.set("Authorization", `Bearer ${tokens.accessToken}`);
+      }
+
+      return fetch(input, {
+        method: "GET",
+        headers,
+        signal: controller.signal,
+      });
+    };
+
+    try {
+      let res = await doFetch();
+
+      if (res.status === 401) {
+        if (!refreshInFlight) {
+          refreshInFlight = refreshTokens().finally(() => {
+            refreshInFlight = null;
+          });
+        }
+
+        await refreshInFlight;
+        res = await doFetch();
+      }
+
+      if (!res.ok || !res.body) {
+        throw new Error("Realtime connection failed");
+      }
+
+      handlers.onOpen?.();
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) {
+          throw new Error("Realtime connection closed");
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+        buffer = buffer.replace(/\r\n/g, "\n");
+
+        let splitIndex = buffer.indexOf("\n\n");
+        while (splitIndex >= 0) {
+          const chunk = buffer.slice(0, splitIndex);
+          buffer = buffer.slice(splitIndex + 2);
+
+          let eventName = "message";
+          const dataLines: string[] = [];
+
+          for (const line of chunk.split("\n")) {
+            if (!line || line.startsWith(":")) continue;
+            if (line.startsWith("event:")) {
+              eventName = line.slice(6).trim();
+              continue;
+            }
+            if (line.startsWith("data:")) {
+              dataLines.push(line.slice(5).trim());
+            }
+          }
+
+          if (dataLines.length > 0) {
+            const raw = dataLines.join("\n");
+            const parsed = raw ? JSON.parse(raw) : null;
+            handlers.onEvent(eventName, parsed);
+          }
+
+          splitIndex = buffer.indexOf("\n\n");
+        }
+      }
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      handlers.onError?.(error instanceof Error ? error : new Error("Realtime stream failed"));
+    }
+  })();
+
+  return () => controller.abort();
+}
