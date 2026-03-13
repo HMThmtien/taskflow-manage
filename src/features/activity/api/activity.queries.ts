@@ -3,7 +3,7 @@ import { getActivity } from './activity.api'
 
 export function useActivityQuery(params?: {
   q?: string
-  projectId?: number
+  projectId?: string
   actor?: string
   type?: string
   page?: number

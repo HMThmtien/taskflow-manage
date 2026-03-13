@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { type Issue, type IssueStatus } from "@/features/issues/api/issues.api";
 import { useIssuesQuery, useMoveIssueMutation } from "@/features/issues/api/issues.queries";
 import { KanbanColumn } from "./kanban-column";
@@ -45,10 +45,14 @@ export function KanbanBoard({
   projectId,
   projectKey,
   onCreateIssue,
+  selectedIssueId,
+  onSelectedIssueChange,
 }: {
   projectId: string;
   projectKey: string;
   onCreateIssue?: () => void;
+  selectedIssueId?: string | null;
+  onSelectedIssueChange?: (issueId: string | null) => void;
 }) {
   const { filters } = useIssueFilters();
 
@@ -146,8 +150,22 @@ export function KanbanBoard({
     if (e.key !== "Escape") return;
     if (isTypingTarget(e.target)) return;
     e.preventDefault();
-    if (selected) setSelected(null);
+    if (selected) {
+      setSelected(null);
+      onSelectedIssueChange?.(null);
+    }
   });
+
+  useEffect(() => {
+    if (!selectedIssueId) {
+      return;
+    }
+
+    const match = issuesList.find((issue) => issue.id === selectedIssueId);
+    if (match && selected?.id !== match.id) {
+      setSelected(match);
+    }
+  }, [issuesList, selected?.id, selectedIssueId]);
 
   function onDragStart(e: DragStartEvent) {
     if (dndDisabled) return;
@@ -276,7 +294,10 @@ export function KanbanBoard({
                     id={c.key}
                     title={c.title}
                     items={groupedSorted[c.key]}
-                    onSelect={(it) => setSelected(it)}
+                    onSelect={(it) => {
+                      setSelected(it);
+                      onSelectedIssueChange?.(it.id);
+                    }}
                     projectKey={projectKey}
                     memberNameById={memberNameById}
                     sortBy={sortBy}
@@ -316,7 +337,12 @@ export function KanbanBoard({
         projectId={projectId}
         issue={selected}
         open={!!selected}
-        onOpenChange={(o) => !o && setSelected(null)}
+        onOpenChange={(o) => {
+          if (!o) {
+            setSelected(null);
+            onSelectedIssueChange?.(null);
+          }
+        }}
         members={members}
       />
     </>

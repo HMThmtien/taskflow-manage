@@ -3,6 +3,8 @@ import { useParams, useSearchParams } from "react-router-dom";
 import { KanbanBoard } from "@/widgets/kanban/kanban-board";
 import { useProjectQuery } from "@/features/projects/api/projects.queries";
 import { ProjectHeader } from "@/widgets/project/project-header";
+import { ProjectBacklogPanel } from "@/widgets/project/project-backlog-panel";
+import { ProjectSettingsPanel } from "@/widgets/project/project-settings-panel";
 import { Button } from "@/components/ui/button";
 import { CreateIssueDialog } from "@/widgets/issues/create-issue-dialog";
 import { useHotkeys, isTypingTarget } from "@/hooks/use-hotkeys";
@@ -12,10 +14,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { RefreshCcw, Keyboard } from "lucide-react";
 
-type TabKey = "board" | "members";
+type TabKey = "board" | "backlog" | "members" | "settings";
 
 function normalizeTab(v: string | null): TabKey {
-  return v === "members" ? "members" : "board";
+  if (v === "backlog") return "backlog";
+  if (v === "members") return "members";
+  if (v === "settings") return "settings";
+  return "board";
 }
 
 export default function ProjectDetailPage() {
@@ -23,6 +28,7 @@ export default function ProjectDetailPage() {
   const [params, setParams] = useSearchParams();
 
   const tabFromUrl = useMemo(() => normalizeTab(params.get("tab")), [params]);
+  const issueIdFromUrl = params.get("issueId");
   const [tab, setTab] = useState<TabKey>(tabFromUrl);
 
   useEffect(() => {
@@ -45,13 +51,15 @@ export default function ProjectDetailPage() {
     }
 
     if (isTypingTarget(e.target)) return;
-    if (tab !== "board") return;
+    if (tab !== "board" && tab !== "backlog") return;
 
     if (e.key === "n" || e.key === "N") {
       e.preventDefault();
       setOpenCreate(true);
       return;
     }
+
+    if (tab !== "board") return;
 
     if (e.key === "/") {
       e.preventDefault();
@@ -70,6 +78,17 @@ export default function ProjectDetailPage() {
     setTab(next);
     const p = new URLSearchParams(params);
     p.set("tab", next);
+    setParams(p, { replace: true });
+  }
+
+  function setSelectedIssueId(nextIssueId: string | null) {
+    const p = new URLSearchParams(params);
+    if (nextIssueId) {
+      p.set("issueId", nextIssueId);
+      p.set("tab", "board");
+    } else {
+      p.delete("issueId");
+    }
     setParams(p, { replace: true });
   }
 
@@ -136,19 +155,23 @@ export default function ProjectDetailPage() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <TabsList>
             <TabsTrigger value="board">Board</TabsTrigger>
+            <TabsTrigger value="backlog">Backlog</TabsTrigger>
             <TabsTrigger value="members">Members</TabsTrigger>
+            <TabsTrigger value="settings">Settings</TabsTrigger>
           </TabsList>
 
           <div className="flex items-center gap-2">
-            {tab === "board" ? (
+            {tab === "board" || tab === "backlog" ? (
               <>
-                <div className="hidden md:flex items-center gap-2 text-xs text-muted-foreground mr-2">
-                  <Keyboard className="h-4 w-4" />
-                  <span>
-                    Shortcuts: <span className="font-medium text-foreground">N</span> new issue,{" "}
-                    <span className="font-medium text-foreground">/</span> search
-                  </span>
-                </div>
+                {tab === "board" ? (
+                  <div className="hidden md:flex items-center gap-2 text-xs text-muted-foreground mr-2">
+                    <Keyboard className="h-4 w-4" />
+                    <span>
+                      Shortcuts: <span className="font-medium text-foreground">N</span> new issue,{" "}
+                      <span className="font-medium text-foreground">/</span> search
+                    </span>
+                  </div>
+                ) : null}
 
                 <Button onClick={() => setOpenCreate(true)} className="whitespace-nowrap">
                   New issue
@@ -163,6 +186,8 @@ export default function ProjectDetailPage() {
             projectId={projectId}
             projectKey={project.key}
             onCreateIssue={() => setOpenCreate(true)}
+            selectedIssueId={issueIdFromUrl}
+            onSelectedIssueChange={setSelectedIssueId}
           />
         </TabsContent>
 
@@ -173,9 +198,22 @@ export default function ProjectDetailPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="backlog" className="mt-6">
+          <ProjectBacklogPanel
+            projectId={projectId}
+            onCreateIssue={() => setOpenCreate(true)}
+            selectedIssueId={issueIdFromUrl}
+            onSelectedIssueChange={setSelectedIssueId}
+          />
+        </TabsContent>
+
+        <TabsContent value="settings" className="mt-6">
+          <ProjectSettingsPanel project={project} />
+        </TabsContent>
       </Tabs>
 
-      {tab === "board" ? (
+      {tab === "board" || tab === "backlog" ? (
         <CreateIssueDialog
           projectId={projectId}
           open={openCreate}

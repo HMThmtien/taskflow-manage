@@ -4,6 +4,7 @@ export type IssueStatus = "TODO" | "IN_PROGRESS" | "DONE";
 export type IssuePriority = "LOW" | "MEDIUM" | "HIGH";
 
 export type IssueType = "TASK" | "BUG" | "STORY" | "EPIC" | "SUBTASK";
+export type SprintStatus = "PLANNED" | "ACTIVE" | "COMPLETED";
 
 export type Issue = {
   id: string;
@@ -20,6 +21,9 @@ export type Issue = {
   reporterUsername?: string | null;
   assigneeId?: string | null;
   assigneeUsername?: string | null;
+  sprintId?: string | null;
+  sprintName?: string | null;
+  sprintStatus?: SprintStatus | null;
   dueDate?: string | null;
   labels?: string[];
   createdAt: string;
@@ -31,6 +35,7 @@ export type IssueListParams = {
   status?: IssueStatus;
   priority?: IssuePriority;
   assigneeId?: string;
+  sprintId?: string;
   dueFrom?: string;
   dueTo?: string;
   label?: string;
@@ -50,6 +55,7 @@ export async function getIssues(projectId: string, params: IssueListParams = {})
   if (params.status) sp.set("status", params.status);
   if (params.priority) sp.set("priority", params.priority);
   if (params.assigneeId) sp.set("assigneeId", params.assigneeId);
+  if (params.sprintId) sp.set("sprintId", params.sprintId);
   if (params.dueFrom) sp.set("dueFrom", params.dueFrom);
   if (params.dueTo) sp.set("dueTo", params.dueTo);
   if (params.label) sp.set("label", params.label);

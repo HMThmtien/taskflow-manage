@@ -7,20 +7,20 @@ export type NotificationType =
   | 'ROLE_CHANGED'
 
 export type NotificationItem = {
-  id: number
+  id: string
   type: NotificationType
   title: string
   body: string
   isRead: boolean
   createdAt: string
   actor?: {
-    id: number
+    id: string
     username: string
     fullName: string | null
   } | null
   target?: {
     entityType: 'ISSUE' | 'PROJECT' | 'USER'
-    entityId: number
+    entityId: string
     route: string
   } | null
 }

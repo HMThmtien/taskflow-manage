@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -40,6 +41,8 @@ function RolePill({ role }: { role: GlobalRole | "UNKNOWN" }) {
 export default function AdminUsersPage() {
   const { toast } = useToast();
   const mut = useChangeUserRoleMutation();
+  const [params] = useSearchParams();
+  const initialQuery = params.get("q") ?? "";
 
   // input state
   const [username, setUsername] = useState("");
@@ -60,6 +63,13 @@ export default function AdminUsersPage() {
     const t = setTimeout(() => setDebounced(search), 250);
     return () => clearTimeout(t);
   }, [search]);
+
+  useEffect(() => {
+    setSearch(initialQuery);
+    setDebounced(initialQuery);
+    setUsername(initialQuery);
+    setCurrentRole("UNKNOWN");
+  }, [initialQuery]);
 
   const usersQ = useAdminUsersAutocompleteQuery(debounced);
   const users = usersQ.data?.content ?? [];

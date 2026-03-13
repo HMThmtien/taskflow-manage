@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { ChevronRight, Plus } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { Project } from "@/features/projects/api/projects.api";
 
@@ -23,6 +24,11 @@ export function ProjectHeader({
           <h1 className="text-2xl font-semibold">
             {project.name} <span className="text-muted-foreground">({project.key})</span>
           </h1>
+          {project.archived ? (
+            <div className="mt-2">
+              <Badge variant="secondary">Archived</Badge>
+            </div>
+          ) : null}
           <p className="text-sm text-muted-foreground">{project.description ?? "No description"}</p>
         </div>
 

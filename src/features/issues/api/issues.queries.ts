@@ -17,11 +17,11 @@ export const issueKeys = {
     [...issueKeys.project(projectId), "list", params] as const,
 };
 
-export function useIssuesQuery(projectId: string, params: IssueListParams) {
+export function useIssuesQuery(projectId: string, params: IssueListParams, enabled = true) {
   return useQuery({
     queryKey: issueKeys.list(projectId, params),
     queryFn: () => getIssues(projectId, params),
-    enabled: !!projectId,
+    enabled: !!projectId && enabled,
   });
 }
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { type Issue, type IssuePriority, type IssueStatus } from "@/features/issues/api/issues.api";
 import { useUpdateIssueMutation } from "@/features/issues/api/issues.queries";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";

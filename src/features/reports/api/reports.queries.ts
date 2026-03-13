@@ -4,7 +4,7 @@ import { getWorkspaceReport } from './reports.api'
 export function useWorkspaceReportQuery(params?: {
   from?: string
   to?: string
-  projectId?: number
+  projectId?: string
 }) {
   return useQuery({
     queryKey: ['reports', 'workspace', params],

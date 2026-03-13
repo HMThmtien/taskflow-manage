@@ -294,7 +294,14 @@ export default function ProjectsPage() {
               <Card className="shadow-sm transition hover:shadow-md hover:-translate-y-[1px] focus-visible:ring-2 focus-visible:ring-primary/40">
                 <CardHeader className="pb-2">
                   <CardTitle className="text-base flex items-center justify-between gap-3">
-                    <span className="truncate">{p.name}</span>
+                    <div className="min-w-0 flex items-center gap-2">
+                      <span className="truncate">{p.name}</span>
+                      {p.archived ? (
+                        <span className="text-[10px] font-medium text-muted-foreground rounded-md border px-2 py-0.5">
+                          Archived
+                        </span>
+                      ) : null}
+                    </div>
                     <span className="text-xs font-medium text-muted-foreground rounded-md border px-2 py-0.5">
                       {p.key}
                     </span>

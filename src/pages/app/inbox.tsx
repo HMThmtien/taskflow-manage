@@ -54,7 +54,7 @@ export default function InboxPage() {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => markOne.mutate(item.id)}
+                  onClick={() => markOne.mutate(String(item.id))}
                 >
                   Mark read
                 </Button>

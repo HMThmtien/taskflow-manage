@@ -1,8 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  archiveProject,
   createProject,
+  deleteProject,
   getProject,
   getProjects,
+  unarchiveProject,
   updateProject,
   type CreateProjectPayload,
   type UpdateProjectPayload,
@@ -47,6 +50,39 @@ export function useUpdateProjectMutation(id: string) {
     mutationFn: (payload: UpdateProjectPayload) => updateProject(id, payload),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: projectKeys.detail(id) });
+      qc.invalidateQueries({ queryKey: projectKeys.list() });
+    },
+  });
+}
+
+export function useArchiveProjectMutation(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => archiveProject(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: projectKeys.detail(id) });
+      qc.invalidateQueries({ queryKey: projectKeys.list() });
+    },
+  });
+}
+
+export function useUnarchiveProjectMutation(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => unarchiveProject(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: projectKeys.detail(id) });
+      qc.invalidateQueries({ queryKey: projectKeys.list() });
+    },
+  });
+}
+
+export function useDeleteProjectMutation(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => deleteProject(id),
+    onSuccess: () => {
+      qc.removeQueries({ queryKey: projectKeys.detail(id) });
       qc.invalidateQueries({ queryKey: projectKeys.list() });
     },
   });

@@ -5,6 +5,8 @@ export type Project = {
   key: string;
   name: string;
   description?: string;
+  archived: boolean;
+  archivedAt?: string | null;
   createdAt: string;
 };
 
@@ -15,6 +17,7 @@ export type CreateProjectPayload = {
 };
 
 export type UpdateProjectPayload = {
+  key: string;
   name: string;
   description?: string;
 };
@@ -41,7 +44,20 @@ export function updateProject(id: string, payload: UpdateProjectPayload) {
   });
 }
 
-// (tuỳ bạn có BE chưa)
-// export function deleteProject(id: string) {
-//   return authFetchJson<void>(`/api/projects/${id}`, { method: "DELETE" });
-// }
+export function archiveProject(id: string) {
+  return authFetchJson<Project>(`/api/projects/${id}/archive`, {
+    method: "PATCH",
+  });
+}
+
+export function unarchiveProject(id: string) {
+  return authFetchJson<Project>(`/api/projects/${id}/unarchive`, {
+    method: "PATCH",
+  });
+}
+
+export function deleteProject(id: string) {
+  return authFetchJson<void>(`/api/projects/${id}`, {
+    method: "DELETE",
+  });
+}
