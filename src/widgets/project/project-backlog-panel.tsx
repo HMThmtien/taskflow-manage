@@ -1,34 +1,35 @@
 import { useEffect, useMemo, useState } from "react";
+import { CalendarRange, Flag, Layers3, PlayCircle, Plus, Rocket, SquareKanban } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { DatePickerField } from "@/components/ui/date-picker-field";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
+import type { Issue } from "@/features/issues/api/issues.api";
+import { useIssuesQuery } from "@/features/issues/api/issues.queries";
+import { useI18n } from "@/features/i18n/i18n";
+import { useMyProjectRoleQuery, useProjectMembersQuery } from "@/features/project-members/api/project-members.queries";
+import type { Sprint, SprintPayload } from "@/features/sprints/api/sprints.api";
 import {
   useAssignIssueToSprintMutation,
+  useBacklogIssuesQuery,
   useCompleteSprintMutation,
   useCreateSprintMutation,
-  useBacklogIssuesQuery,
   useSprintsQuery,
   useStartSprintMutation,
   useUpdateSprintMutation,
 } from "@/features/sprints/api/sprints.queries";
-import type { Sprint, SprintPayload } from "@/features/sprints/api/sprints.api";
-import { useIssuesQuery } from "@/features/issues/api/issues.queries";
-import type { Issue } from "@/features/issues/api/issues.api";
-import { useMyProjectRoleQuery, useProjectMembersQuery } from "@/features/project-members/api/project-members.queries";
-import { IssueDrawer } from "@/widgets/kanban/issue-drawer";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import { DatePickerField } from "@/components/ui/date-picker-field";
-import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { CalendarRange, Flag, Layers3, PlayCircle, Plus, Rocket, SquareKanban } from "lucide-react";
-import { StatusPill } from "@/pages/app/status-pill";
 import { PriorityBadge } from "@/pages/app/priority-badge";
+import { StatusPill } from "@/pages/app/status-pill";
 import { IssueTypeBadge } from "@/widgets/issues/issue-type-badge";
+import { IssueDrawer } from "@/widgets/kanban/issue-drawer";
 
 type SprintFormState = {
   name: string;
@@ -39,13 +40,7 @@ type SprintFormState = {
 };
 
 function emptyForm(): SprintFormState {
-  return {
-    name: "",
-    goal: "",
-    description: "",
-    startDate: "",
-    endDate: "",
-  };
+  return { name: "", goal: "", description: "", startDate: "", endDate: "" };
 }
 
 function normalizePayload(state: SprintFormState): SprintPayload {
@@ -58,16 +53,20 @@ function normalizePayload(state: SprintFormState): SprintPayload {
   };
 }
 
-function formatDateRange(start?: string | null, end?: string | null) {
-  if (!start && !end) return "No schedule yet";
-  if (start && end) return `${start} -> ${end}`;
-  return start ? `Starts ${start}` : `Ends ${end}`;
-}
-
 function sprintTone(status: Sprint["status"]) {
   if (status === "ACTIVE") return "default";
   if (status === "COMPLETED") return "secondary";
   return "outline";
+}
+
+function formatDateRange(
+  t: (key: string, params?: Record<string, string | number | undefined | null>) => string,
+  start?: string | null,
+  end?: string | null
+) {
+  if (!start && !end) return t("backlog.noScheduleYet");
+  if (start && end) return `${start} -> ${end}`;
+  return start ? t("backlog.startsAt", { date: start }) : t("backlog.endsAt", { date: end });
 }
 
 function IssuePlanningList({
@@ -89,6 +88,8 @@ function IssuePlanningList({
   onSelectIssue: (issue: Issue | null) => void;
   onAssign: (issueId: string, sprintId?: string | null) => void;
 }) {
+  const { t } = useI18n();
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
@@ -98,7 +99,7 @@ function IssuePlanningList({
 
       {issues.length === 0 ? (
         <div className="rounded-xl border border-dashed px-4 py-6 text-sm text-muted-foreground">
-          No issues in this section yet.
+          {t("backlog.noIssuesInSection")}
         </div>
       ) : (
         <div className="space-y-2">
@@ -111,11 +112,7 @@ function IssuePlanningList({
               )}
             >
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                <button
-                  type="button"
-                  className="min-w-0 flex-1 text-left"
-                  onClick={() => onSelectIssue(issue)}
-                >
+                <button type="button" className="min-w-0 flex-1 text-left" onClick={() => onSelectIssue(issue)}>
                   <div className="flex min-w-0 flex-wrap items-center gap-2">
                     <IssueTypeBadge type={issue.type} />
                     <span className="truncate font-medium text-foreground">{issue.title}</span>
@@ -128,8 +125,8 @@ function IssuePlanningList({
                   <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                     <StatusPill status={issue.status} />
                     <PriorityBadge priority={issue.priority} />
-                    {issue.assigneeUsername ? <span>@{issue.assigneeUsername}</span> : <span>Unassigned</span>}
-                    {issue.dueDate ? <span>Due {issue.dueDate}</span> : null}
+                    {issue.assigneeUsername ? <span>@{issue.assigneeUsername}</span> : <span>{t("board.unassigned")}</span>}
+                    {issue.dueDate ? <span>{t("board.dueShort", { date: issue.dueDate })}</span> : null}
                   </div>
                 </button>
 
@@ -140,10 +137,10 @@ function IssuePlanningList({
                     onValueChange={(value) => onAssign(issue.id, value === "backlog" ? null : value)}
                   >
                     <SelectTrigger className="h-9">
-                      <SelectValue placeholder="Move to sprint" />
+                      <SelectValue placeholder={t("backlog.moveToSprint")} />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="backlog">Backlog</SelectItem>
+                      <SelectItem value="backlog">{t("backlog.backlog")}</SelectItem>
                       {sprintOptions.map((sprint) => (
                         <SelectItem key={sprint.id} value={sprint.id}>
                           {sprint.name}
@@ -178,6 +175,8 @@ function SprintDialog({
   onChange: (next: SprintFormState) => void;
   onSubmit: () => void;
 }) {
+  const { t } = useI18n();
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[640px]">
@@ -187,60 +186,60 @@ function SprintDialog({
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <div className="text-sm font-medium">Sprint name</div>
+            <div className="text-sm font-medium">{t("backlog.sprintName")}</div>
             <Input
               value={state.name}
               onChange={(e) => onChange({ ...state, name: e.target.value })}
-              placeholder="e.g. Sprint 12"
+              placeholder={t("backlog.sprintNamePlaceholder")}
             />
           </div>
 
           <div className="space-y-2">
-            <div className="text-sm font-medium">Goal</div>
+            <div className="text-sm font-medium">{t("backlog.goal")}</div>
             <Input
               value={state.goal}
               onChange={(e) => onChange({ ...state, goal: e.target.value })}
-              placeholder="What should this sprint achieve?"
+              placeholder={t("backlog.goalPlaceholder")}
             />
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <div className="text-sm font-medium">Start date</div>
+              <div className="text-sm font-medium">{t("backlog.startDate")}</div>
               <DatePickerField
                 value={state.startDate}
                 onChange={(value) => onChange({ ...state, startDate: value })}
-                placeholder="Pick start date"
+                placeholder={t("backlog.pickStartDate")}
               />
             </div>
 
             <div className="space-y-2">
-              <div className="text-sm font-medium">End date</div>
+              <div className="text-sm font-medium">{t("backlog.endDate")}</div>
               <DatePickerField
                 value={state.endDate}
                 onChange={(value) => onChange({ ...state, endDate: value })}
-                placeholder="Pick end date"
+                placeholder={t("backlog.pickEndDate")}
               />
             </div>
           </div>
 
           <div className="space-y-2">
-            <div className="text-sm font-medium">Description</div>
+            <div className="text-sm font-medium">{t("backlog.descriptionField")}</div>
             <Textarea
               value={state.description}
               onChange={(e) => onChange({ ...state, description: e.target.value })}
               className="min-h-[140px]"
-              placeholder="Planning notes, scope, or reminders..."
+              placeholder={t("backlog.descriptionPlaceholder")}
             />
           </div>
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-            Cancel
+            {t("common.cancel")}
           </Button>
           <Button onClick={onSubmit} disabled={saving || state.name.trim().length < 2}>
-            {saving ? "Saving..." : "Save sprint"}
+            {saving ? t("common.saving") : t("backlog.saveSprint")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -259,12 +258,12 @@ export function ProjectBacklogPanel({
   selectedIssueId?: string | null;
   onSelectedIssueChange?: (issueId: string | null) => void;
 }) {
+  const { t } = useI18n();
   const { toast } = useToast();
   const roleQ = useMyProjectRoleQuery(projectId);
   const membersQ = useProjectMembersQuery(projectId);
   const sprintsQ = useSprintsQuery(projectId);
   const backlogQ = useBacklogIssuesQuery(projectId);
-
   const createSprintMut = useCreateSprintMutation(projectId);
   const updateSprintMut = useUpdateSprintMutation(projectId);
   const startSprintMut = useStartSprintMutation(projectId);
@@ -272,24 +271,17 @@ export function ProjectBacklogPanel({
   const assignIssueMut = useAssignIssueToSprintMutation(projectId);
 
   const sprints = sprintsQ.data ?? [];
-  const activeSprint = sprints.find((sprint) => sprint.status === "ACTIVE") ?? null;
-  const plannedSprints = sprints.filter((sprint) => sprint.status === "PLANNED");
-  const completedSprints = sprints.filter((sprint) => sprint.status === "COMPLETED");
-  const assignableSprints = sprints.filter((sprint) => sprint.status !== "COMPLETED");
+  const activeSprint = sprints.find((s) => s.status === "ACTIVE") ?? null;
+  const plannedSprints = sprints.filter((s) => s.status === "PLANNED");
+  const completedSprints = sprints.filter((s) => s.status === "COMPLETED");
+  const assignableSprints = sprints.filter((s) => s.status !== "COMPLETED");
 
-  const activeIssuesQ = useIssuesQuery(
-    projectId,
-    { sprintId: activeSprint?.id },
-    !!activeSprint?.id
-  );
+  const activeIssuesQ = useIssuesQuery(projectId, { sprintId: activeSprint?.id }, !!activeSprint?.id);
 
   const role = roleQ.data?.role;
   const canManageSprints = role === "OWNER" || role === "ADMIN";
   const canPlanIssues = role !== "VIEWER";
-  const members = membersQ.data?.map((member) => ({
-    userId: member.userId,
-    username: member.username,
-  })) ?? [];
+  const members = membersQ.data?.map((member) => ({ userId: member.userId, username: member.username })) ?? [];
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingSprint, setEditingSprint] = useState<Sprint | null>(null);
@@ -306,9 +298,7 @@ export function ProjectBacklogPanel({
   useEffect(() => {
     if (!selectedIssueId) return;
     const match = visibleIssues.find((issue) => issue.id === selectedIssueId);
-    if (match && selectedIssue?.id !== match.id) {
-      setSelectedIssue(match);
-    }
+    if (match && selectedIssue?.id !== match.id) setSelectedIssue(match);
   }, [selectedIssue?.id, selectedIssueId, visibleIssues]);
 
   function openCreateSprint() {
@@ -334,18 +324,18 @@ export function ProjectBacklogPanel({
       const payload = normalizePayload(form);
       if (editingSprint) {
         await updateSprintMut.mutateAsync({ sprintId: editingSprint.id, payload });
-        toast({ title: "Sprint updated" });
+        toast({ title: t("backlog.sprintUpdated") });
       } else {
         await createSprintMut.mutateAsync(payload);
-        toast({ title: "Sprint created" });
+        toast({ title: t("backlog.sprintCreated") });
       }
       setDialogOpen(false);
       setEditingSprint(null);
       setForm(emptyForm());
-    } catch (e: any) {
+    } catch (e: unknown) {
       toast({
-        title: editingSprint ? "Update sprint failed" : "Create sprint failed",
-        description: e?.message ?? "Unknown error",
+        title: editingSprint ? t("backlog.updateSprintFailed") : t("backlog.createSprintFailed"),
+        description: e instanceof Error ? e.message : t("issue.unknownError"),
         variant: "destructive",
       });
     }
@@ -354,11 +344,11 @@ export function ProjectBacklogPanel({
   async function changeIssueSprint(issueId: string, sprintId?: string | null) {
     try {
       await assignIssueMut.mutateAsync({ issueId, sprintId });
-      toast({ title: sprintId ? "Issue assigned to sprint" : "Issue moved back to backlog" });
-    } catch (e: any) {
+      toast({ title: sprintId ? t("backlog.issueAssigned") : t("backlog.issueMovedBack") });
+    } catch (e: unknown) {
       toast({
-        title: "Sprint assignment failed",
-        description: e?.message ?? "Unknown error",
+        title: t("backlog.sprintAssignmentFailed"),
+        description: e instanceof Error ? e.message : t("issue.unknownError"),
         variant: "destructive",
       });
     }
@@ -367,11 +357,11 @@ export function ProjectBacklogPanel({
   async function startSprint(sprintId: string) {
     try {
       await startSprintMut.mutateAsync(sprintId);
-      toast({ title: "Sprint started" });
-    } catch (e: any) {
+      toast({ title: t("backlog.sprintStarted") });
+    } catch (e: unknown) {
       toast({
-        title: "Start sprint failed",
-        description: e?.message ?? "Unknown error",
+        title: t("backlog.startSprintFailed"),
+        description: e instanceof Error ? e.message : t("issue.unknownError"),
         variant: "destructive",
       });
     }
@@ -380,11 +370,11 @@ export function ProjectBacklogPanel({
   async function completeSprint(sprintId: string) {
     try {
       await completeSprintMut.mutateAsync(sprintId);
-      toast({ title: "Sprint completed" });
-    } catch (e: any) {
+      toast({ title: t("backlog.sprintCompleted") });
+    } catch (e: unknown) {
       toast({
-        title: "Complete sprint failed",
-        description: e?.message ?? "Unknown error",
+        title: t("backlog.completeSprintFailed"),
+        description: e instanceof Error ? e.message : t("issue.unknownError"),
         variant: "destructive",
       });
     }
@@ -394,18 +384,16 @@ export function ProjectBacklogPanel({
 
   return (
     <div className="space-y-6">
-      <Card className="shadow-sm overflow-hidden">
+      <Card className="overflow-hidden shadow-sm">
         <CardContent className="flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-2">
             <div className="inline-flex items-center gap-2 rounded-full border bg-background/70 px-3 py-1 text-xs text-muted-foreground">
               <Rocket className="h-3.5 w-3.5" />
-              Agile planning
+              {t("backlog.agilePlanning")}
             </div>
             <div>
-              <h2 className="text-xl font-semibold tracking-tight">Backlog & Sprints</h2>
-              <p className="text-sm text-muted-foreground">
-                Plan backlog work, prepare the next sprint, and keep active delivery visible.
-              </p>
+              <h2 className="text-xl font-semibold tracking-tight">{t("backlog.title")}</h2>
+              <p className="text-sm text-muted-foreground">{t("backlog.description")}</p>
             </div>
           </div>
 
@@ -413,13 +401,13 @@ export function ProjectBacklogPanel({
             {onCreateIssue ? (
               <Button variant="outline" onClick={onCreateIssue}>
                 <Plus className="mr-2 h-4 w-4" />
-                New issue
+                {t("common.newIssue")}
               </Button>
             ) : null}
 
             <Button onClick={openCreateSprint} disabled={!canManageSprints}>
               <Rocket className="mr-2 h-4 w-4" />
-              Create sprint
+              {t("backlog.createSprint")}
             </Button>
           </div>
         </CardContent>
@@ -456,13 +444,13 @@ export function ProjectBacklogPanel({
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <SquareKanban className="h-5 w-5 text-primary" />
-                  <CardTitle>Backlog</CardTitle>
+                  <CardTitle>{t("backlog.backlog")}</CardTitle>
                 </div>
-                <CardDescription>Issues without a sprint stay here until they are planned.</CardDescription>
+                <CardDescription>{t("backlog.backlogDescription")}</CardDescription>
               </CardHeader>
               <CardContent>
                 <IssuePlanningList
-                  title="Unplanned issues"
+                  title={t("backlog.unplannedIssues")}
                   issues={backlogQ.data ?? []}
                   sprintOptions={assignableSprints}
                   canPlanIssues={canPlanIssues}
@@ -477,16 +465,14 @@ export function ProjectBacklogPanel({
               </CardContent>
             </Card>
 
-            <Card className="shadow-sm border-primary/20">
+            <Card className="border-primary/20 shadow-sm">
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <PlayCircle className="h-5 w-5 text-primary" />
-                  <CardTitle>Current Sprint</CardTitle>
+                  <CardTitle>{t("backlog.currentSprint")}</CardTitle>
                 </div>
                 <CardDescription>
-                  {activeSprint
-                    ? "The active sprint is your current delivery lane."
-                    : "No sprint is active yet. Start one when the plan is ready."}
+                  {activeSprint ? t("backlog.currentSprintActiveDescription") : t("backlog.currentSprintEmptyDescription")}
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -498,17 +484,17 @@ export function ProjectBacklogPanel({
                           <div className="flex flex-wrap items-center gap-2">
                             <h3 className="text-lg font-semibold">{activeSprint.name}</h3>
                             <Badge variant={sprintTone(activeSprint.status)}>{activeSprint.status}</Badge>
-                            <Badge variant="outline">{activeSprint.issueCount} issues</Badge>
+                            <Badge variant="outline">{t("backlog.issuesCount", { count: activeSprint.issueCount })}</Badge>
                           </div>
                           <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                             <span className="inline-flex items-center gap-1">
                               <CalendarRange className="h-4 w-4" />
-                              {formatDateRange(activeSprint.startDate, activeSprint.endDate)}
+                              {formatDateRange(t, activeSprint.startDate, activeSprint.endDate)}
                             </span>
                           </div>
                           {activeSprint.goal ? (
                             <div className="rounded-xl border bg-background/70 px-3 py-2 text-sm">
-                              <span className="font-medium text-foreground">Goal:</span> {activeSprint.goal}
+                              <span className="font-medium text-foreground">{t("backlog.goalLabel")}</span> {activeSprint.goal}
                             </div>
                           ) : null}
                           {activeSprint.description ? (
@@ -517,25 +503,21 @@ export function ProjectBacklogPanel({
                         </div>
 
                         <div className="flex items-center gap-2">
-                          <Button
-                            variant="outline"
-                            onClick={() => openEditSprint(activeSprint)}
-                            disabled={!canManageSprints}
-                          >
-                            Edit
+                          <Button variant="outline" onClick={() => openEditSprint(activeSprint)} disabled={!canManageSprints}>
+                            {t("common.edit")}
                           </Button>
                           <Button
                             onClick={() => completeSprint(activeSprint.id)}
                             disabled={!canManageSprints || completeSprintMut.isPending}
                           >
-                            Complete sprint
+                            {t("backlog.completeSprint")}
                           </Button>
                         </div>
                       </div>
                     </div>
 
                     <IssuePlanningList
-                      title="Sprint scope"
+                      title={t("backlog.sprintScope")}
                       issues={activeIssuesQ.data ?? []}
                       sprintOptions={assignableSprints}
                       canPlanIssues={canPlanIssues}
@@ -550,7 +532,7 @@ export function ProjectBacklogPanel({
                   </>
                 ) : (
                   <div className="rounded-xl border border-dashed p-6 text-sm text-muted-foreground">
-                    Start a planned sprint to separate active delivery from the backlog.
+                    {t("backlog.startPlannedSprintHint")}
                   </div>
                 )}
               </CardContent>
@@ -562,14 +544,14 @@ export function ProjectBacklogPanel({
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <Layers3 className="h-5 w-5 text-primary" />
-                  <CardTitle>Planned Sprints</CardTitle>
+                  <CardTitle>{t("backlog.plannedSprints")}</CardTitle>
                 </div>
-                <CardDescription>Prepare upcoming sprints before activating them.</CardDescription>
+                <CardDescription>{t("backlog.plannedSprintsDescription")}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 {plannedSprints.length === 0 ? (
                   <div className="rounded-xl border border-dashed px-4 py-6 text-sm text-muted-foreground">
-                    No planned sprints yet.
+                    {t("backlog.noPlannedSprints")}
                   </div>
                 ) : (
                   plannedSprints.map((sprint) => (
@@ -579,33 +561,28 @@ export function ProjectBacklogPanel({
                           <div className="flex flex-wrap items-center gap-2">
                             <div className="font-semibold">{sprint.name}</div>
                             <Badge variant={sprintTone(sprint.status)}>{sprint.status}</Badge>
-                            <Badge variant="outline">{sprint.issueCount} issues</Badge>
+                            <Badge variant="outline">{t("backlog.issuesCount", { count: sprint.issueCount })}</Badge>
                           </div>
                           <div className="text-sm text-muted-foreground">
-                            {formatDateRange(sprint.startDate, sprint.endDate)}
+                            {formatDateRange(t, sprint.startDate, sprint.endDate)}
                           </div>
                           {sprint.goal ? (
                             <div className="text-sm text-foreground">{sprint.goal}</div>
                           ) : (
-                            <div className="text-sm text-muted-foreground">No sprint goal yet.</div>
+                            <div className="text-sm text-muted-foreground">{t("backlog.noSprintGoalYet")}</div>
                           )}
                         </div>
 
                         <div className="flex flex-col items-end gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => openEditSprint(sprint)}
-                            disabled={!canManageSprints}
-                          >
-                            Edit
+                          <Button size="sm" variant="outline" onClick={() => openEditSprint(sprint)} disabled={!canManageSprints}>
+                            {t("common.edit")}
                           </Button>
                           <Button
                             size="sm"
                             onClick={() => startSprint(sprint.id)}
                             disabled={!canManageSprints || !!activeSprint || startSprintMut.isPending}
                           >
-                            Start sprint
+                            {t("backlog.startSprint")}
                           </Button>
                         </div>
                       </div>
@@ -619,14 +596,14 @@ export function ProjectBacklogPanel({
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <Flag className="h-5 w-5 text-primary" />
-                  <CardTitle>Completed Sprints</CardTitle>
+                  <CardTitle>{t("backlog.completedSprints")}</CardTitle>
                 </div>
-                <CardDescription>History stays preserved after completion.</CardDescription>
+                <CardDescription>{t("backlog.completedSprintsDescription")}</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 {completedSprints.length === 0 ? (
                   <div className="rounded-xl border border-dashed px-4 py-6 text-sm text-muted-foreground">
-                    No sprint history yet.
+                    {t("backlog.noSprintHistory")}
                   </div>
                 ) : (
                   completedSprints.map((sprint, index) => (
@@ -636,14 +613,14 @@ export function ProjectBacklogPanel({
                         <div className="flex flex-wrap items-center gap-2">
                           <div className="font-medium">{sprint.name}</div>
                           <Badge variant={sprintTone(sprint.status)}>{sprint.status}</Badge>
-                          <Badge variant="outline">{sprint.issueCount} issues</Badge>
+                          <Badge variant="outline">{t("backlog.issuesCount", { count: sprint.issueCount })}</Badge>
                         </div>
                         <div className="text-sm text-muted-foreground">
-                          {formatDateRange(sprint.startDate, sprint.endDate)}
+                          {formatDateRange(t, sprint.startDate, sprint.endDate)}
                         </div>
                         {sprint.completedAt ? (
                           <div className="text-xs text-muted-foreground">
-                            Completed at {new Date(sprint.completedAt).toLocaleString()}
+                            {t("backlog.completedAt", { date: new Date(sprint.completedAt).toLocaleString() })}
                           </div>
                         ) : null}
                       </div>
@@ -658,7 +635,7 @@ export function ProjectBacklogPanel({
 
       <SprintDialog
         open={dialogOpen}
-        title={editingSprint ? "Edit sprint" : "Create sprint"}
+        title={editingSprint ? t("backlog.editSprintTitle") : t("backlog.createSprintTitle")}
         state={form}
         saving={createSprintMut.isPending || updateSprintMut.isPending}
         onOpenChange={(open) => {

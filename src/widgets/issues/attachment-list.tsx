@@ -1,5 +1,6 @@
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useI18n } from "@/features/i18n/i18n";
 
 export type IssueAttachment = {
   id: string;
@@ -28,8 +29,10 @@ export function AttachmentList({
   onDelete: (id: string) => void;
   deletingId?: string | null;
 }) {
+  const { t } = useI18n();
+
   if (!items.length) {
-    return <div className="text-sm text-muted-foreground">No attachments yet</div>;
+    return <div className="text-sm text-muted-foreground">{t("issue.noAttachmentsYet")}</div>;
   }
 
   return (
@@ -42,20 +45,23 @@ export function AttachmentList({
         return (
           <div
             key={item.id}
-            className="rounded-lg border p-3 flex items-center justify-between gap-3"
+            className="flex items-center justify-between gap-3 rounded-lg border p-3"
           >
             <div className="min-w-0">
               <a
                 href={href}
                 target="_blank"
                 rel="noreferrer"
-                className="text-sm font-medium hover:underline break-all"
+                className="break-all text-sm font-medium hover:underline"
               >
                 {item.fileName}
               </a>
               <div className="mt-1 text-xs text-muted-foreground">
-                {formatFileSize(item.fileSize)} · {item.uploadedByUsername} ·{" "}
-                {new Date(item.createdAt).toLocaleString()}
+                {t("issue.byLine", {
+                  size: formatFileSize(item.fileSize),
+                  user: item.uploadedByUsername,
+                  date: new Date(item.createdAt).toLocaleString(),
+                })}
               </div>
             </div>
 

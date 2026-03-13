@@ -1,31 +1,32 @@
 import { useEffect, useMemo, useState } from "react";
-import { type Issue, type IssueStatus } from "@/features/issues/api/issues.api";
-import { useIssuesQuery, useMoveIssueMutation } from "@/features/issues/api/issues.queries";
-import { KanbanColumn } from "./kanban-column";
-import { IssueDrawer } from "./issue-drawer";
-import { useHotkeys, isTypingTarget } from "@/hooks/use-hotkeys";
-import { IssueFilterBar } from "@/widgets/issues/issue-filter-bar";
-import { useIssueFilters } from "@/features/issues/api/use-issue-filters";
 import {
   DndContext,
   DragOverlay,
   PointerSensor,
-  useSensor,
-  useSensors,
   type DragEndEvent,
   type DragStartEvent,
+  useSensor,
+  useSensors,
 } from "@dnd-kit/core";
-import { useProjectMembersQuery } from "@/features/project-members/api/project-members.queries";
+import { Plus, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { RotateCcw, Plus } from "lucide-react";
 import { Card } from "@/components/ui/card";
-import { StatusPill } from "@/pages/app/status-pill";
+import { useI18n } from "@/features/i18n/i18n";
+import { type Issue, type IssueStatus } from "@/features/issues/api/issues.api";
+import { useIssuesQuery, useMoveIssueMutation } from "@/features/issues/api/issues.queries";
+import { useIssueFilters } from "@/features/issues/api/use-issue-filters";
+import { useProjectMembersQuery } from "@/features/project-members/api/project-members.queries";
+import { useHotkeys, isTypingTarget } from "@/hooks/use-hotkeys";
 import { PriorityBadge } from "@/pages/app/priority-badge";
+import { StatusPill } from "@/pages/app/status-pill";
+import { IssueFilterBar } from "@/widgets/issues/issue-filter-bar";
+import { IssueDrawer } from "./issue-drawer";
+import { KanbanColumn } from "./kanban-column";
 
-const columns: { key: IssueStatus; title: string }[] = [
-  { key: "TODO", title: "Todo" },
-  { key: "IN_PROGRESS", title: "In Progress" },
-  { key: "DONE", title: "Done" },
+const sortColumns = (t: (key: string) => string): { key: IssueStatus; title: string }[] => [
+  { key: "TODO", title: t("board.todo") },
+  { key: "IN_PROGRESS", title: t("board.inProgress") },
+  { key: "DONE", title: t("board.done") },
 ];
 
 type SortBy = "position" | "priority" | "dueDate" | "updatedAt";
@@ -37,8 +38,8 @@ function priorityRank(p: Issue["priority"]) {
 function safeTime(v?: string | null) {
   if (!v) return Number.POSITIVE_INFINITY;
   const d = new Date(v);
-  const t = d.getTime();
-  return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY;
+  const time = d.getTime();
+  return Number.isFinite(time) ? time : Number.POSITIVE_INFINITY;
 }
 
 export function KanbanBoard({
@@ -54,44 +55,31 @@ export function KanbanBoard({
   selectedIssueId?: string | null;
   onSelectedIssueChange?: (issueId: string | null) => void;
 }) {
+  const { t } = useI18n();
   const { filters } = useIssueFilters();
-
-  // ✅ add isFetching so you can show "Updating..."
   const { data, isLoading, isFetching, isError, error, refetch } = useIssuesQuery(projectId, filters);
-
   const moveMut = useMoveIssueMutation(projectId);
-
   const [activeId, setActiveId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Issue | null>(null);
-
-  // Optimistic overrides (avoid syncing state from effects)
   const [overrides, setOverrides] = useState<Record<string, Partial<Issue>>>({});
-
-  const membersQ = useProjectMembersQuery(projectId);
-  const members = membersQ.data?.map((m) => ({ userId: m.userId, username: m.username })) ?? [];
-  const memberNameById = useMemo(() => {
-    const m = new Map<string, string>();
-    for (const it of members) m.set(it.userId, it.username);
-    return m;
-  }, [members]);
-
-  // Board preferences (local only)
   const [sortBy, setSortBy] = useState<SortBy>("position");
   const [collapseDone, setCollapseDone] = useState(false);
   const [wipLimit, setWipLimit] = useState<number | null>(5);
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: { distance: 8 },
-    })
-  );
+  const membersQ = useProjectMembersQuery(projectId);
+  const members = membersQ.data?.map((m) => ({ userId: m.userId, username: m.username })) ?? [];
+  const memberNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const member of members) map.set(member.userId, member.username);
+    return map;
+  }, [members]);
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
   const issuesList = useMemo(() => {
     const base = Array.isArray(data) ? data : [];
-    if (!base.length) return base;
-    const hasAny = Object.keys(overrides).length > 0;
-    if (!hasAny) return base;
-    return base.map((i) => (overrides[i.id] ? { ...i, ...overrides[i.id] } : i));
+    if (!base.length || Object.keys(overrides).length === 0) return base;
+    return base.map((issue) => (overrides[issue.id] ? { ...issue, ...overrides[issue.id] } : issue));
   }, [data, overrides]);
 
   const filteredIssues = useMemo(() => {
@@ -99,20 +87,20 @@ export function KanbanBoard({
 
     return issuesList.filter((issue) => {
       if (q) {
-        const hay = `${issue.title} ${issue.description ?? ""}`.toLowerCase();
-        if (!hay.includes(q)) return false;
+        const haystack = `${issue.title} ${issue.description ?? ""}`.toLowerCase();
+        if (!haystack.includes(q)) return false;
       }
       if (filters.status && issue.status !== filters.status) return false;
       if (filters.priority && issue.priority !== filters.priority) return false;
       return true;
     });
-  }, [issuesList, filters.q, filters.status, filters.priority]);
+  }, [filters.priority, filters.q, filters.status, issuesList]);
 
   const grouped = useMemo(
     () => ({
-      TODO: filteredIssues.filter((i) => i.status === "TODO"),
-      IN_PROGRESS: filteredIssues.filter((i) => i.status === "IN_PROGRESS"),
-      DONE: filteredIssues.filter((i) => i.status === "DONE"),
+      TODO: filteredIssues.filter((issue) => issue.status === "TODO"),
+      IN_PROGRESS: filteredIssues.filter((issue) => issue.status === "IN_PROGRESS"),
+      DONE: filteredIssues.filter((issue) => issue.status === "DONE"),
     }),
     [filteredIssues]
   );
@@ -131,6 +119,7 @@ export function KanbanBoard({
       }
       return arr;
     };
+
     return {
       TODO: sort(grouped.TODO),
       IN_PROGRESS: sort(grouped.IN_PROGRESS),
@@ -140,11 +129,11 @@ export function KanbanBoard({
 
   const activeIssue = useMemo(() => {
     if (!activeId) return null;
-    return issuesList.find((i) => i.id === activeId) ?? null;
+    return issuesList.find((issue) => issue.id === activeId) ?? null;
   }, [activeId, issuesList]);
 
-  // Disable drag while drawer open or mutation in-flight (better UX)
   const dndDisabled = !!selected || moveMut.isPending;
+  const columns = useMemo(() => sortColumns(t), [t]);
 
   useHotkeys((e) => {
     if (e.key !== "Escape") return;
@@ -157,10 +146,7 @@ export function KanbanBoard({
   });
 
   useEffect(() => {
-    if (!selectedIssueId) {
-      return;
-    }
-
+    if (!selectedIssueId) return;
     const match = issuesList.find((issue) => issue.id === selectedIssueId);
     if (match && selected?.id !== match.id) {
       setSelected(match);
@@ -184,33 +170,31 @@ export function KanbanBoard({
 
     const issueId = String(e.active.id);
     const overId = e.over?.id ? String(e.over.id) : null;
-
     setActiveId(null);
     if (!overId) return;
 
     const nextStatus = overId as IssueStatus;
-
-    const current = issuesList.find((i) => i.id === issueId);
+    const current = issuesList.find((issue) => issue.id === issueId);
     if (!current || current.status === nextStatus) return;
 
-    // ✅ optimistic update
-    setOverrides((cur) => ({ ...cur, [issueId]: { ...(cur[issueId] ?? {}), status: nextStatus } }));
+    setOverrides((currentOverrides) => ({
+      ...currentOverrides,
+      [issueId]: { ...(currentOverrides[issueId] ?? {}), status: nextStatus },
+    }));
 
     moveMut.mutate(
       { issueId, status: nextStatus },
       {
         onError: () => {
-          // revert just this card override
-          setOverrides((cur) => {
-            const next = { ...cur };
+          setOverrides((currentOverrides) => {
+            const next = { ...currentOverrides };
             delete next[issueId];
             return next;
           });
         },
         onSettled: () => {
-          // clear optimistic override; query invalidation will refresh canonical order/state
-          setOverrides((cur) => {
-            const next = { ...cur };
+          setOverrides((currentOverrides) => {
+            const next = { ...currentOverrides };
             delete next[issueId];
             return next;
           });
@@ -224,21 +208,19 @@ export function KanbanBoard({
 
   return (
     <>
-      {/* ✅ Always mounted => input never loses focus */}
       <IssueFilterBar members={members} />
 
-      {/* ✅ Initial loading skeleton only (no data yet) */}
       {isLoading && !data ? (
         <div className="space-y-4">
-          <div className="h-10 w-full max-w-[720px] rounded bg-muted animate-pulse" />
+          <div className="h-10 w-full max-w-[720px] animate-pulse rounded bg-muted" />
           <div className="grid gap-4 md:grid-cols-3">
             {Array.from({ length: 3 }).map((_, i) => (
               <div key={i} className="h-[520px] rounded-lg border bg-card">
                 <div className="p-4">
-                  <div className="h-4 w-24 rounded bg-muted animate-pulse" />
+                  <div className="h-4 w-24 animate-pulse rounded bg-muted" />
                   <div className="mt-4 space-y-3">
                     {Array.from({ length: 4 }).map((__, j) => (
-                      <div key={j} className="h-16 rounded bg-muted animate-pulse" />
+                      <div key={j} className="h-16 animate-pulse rounded bg-muted" />
                     ))}
                   </div>
                 </div>
@@ -251,61 +233,55 @@ export function KanbanBoard({
           <div className="text-sm text-destructive">{(error as Error).message}</div>
           <Button variant="outline" onClick={() => refetch()}>
             <RotateCcw className="mr-2 h-4 w-4" />
-            Retry
+            {t("common.retry")}
           </Button>
         </div>
       ) : (
         <>
-          {/* ✅ Refetch hint */}
           {isFetching ? (
-            <div className="mb-2 text-xs text-muted-foreground flex items-center gap-2">
+            <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
               <span className="inline-block h-2 w-2 rounded-full bg-muted-foreground/40" />
-              Updating…
+              {t("board.updating")}
             </div>
           ) : null}
 
-          {/* Empty states */}
           {isTrulyEmpty ? (
-            <div className="rounded-xl border border-dashed p-10 text-center bg-muted/10">
-              <div className="text-sm font-medium">No issues yet</div>
-              <div className="mt-1 text-sm text-muted-foreground">
-                Create your first issue to start tracking work in this project.
-              </div>
+            <div className="rounded-xl border border-dashed bg-muted/10 p-10 text-center">
+              <div className="text-sm font-medium">{t("board.noIssuesYet")}</div>
+              <div className="mt-1 text-sm text-muted-foreground">{t("board.createFirstIssue")}</div>
               <div className="mt-4">
                 <Button variant="outline" className="gap-2" onClick={onCreateIssue} disabled={!onCreateIssue}>
                   <Plus className="h-4 w-4" />
-                  Create issue
+                  {t("common.newIssue")}
                 </Button>
               </div>
             </div>
           ) : isEmptyAfterFilter ? (
             <div className="rounded-xl border border-dashed p-10 text-center">
-              <div className="text-sm font-medium">No issues match your filters</div>
-              <div className="mt-1 text-sm text-muted-foreground">
-                Try clearing filters or adjusting your search.
-              </div>
+              <div className="text-sm font-medium">{t("board.noIssuesMatch")}</div>
+              <div className="mt-1 text-sm text-muted-foreground">{t("board.tryAdjustingFilters")}</div>
             </div>
           ) : (
             <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={onDragCancel}>
               <div className="grid gap-4 md:grid-cols-3">
-                {columns.map((c) => (
+                {columns.map((column) => (
                   <KanbanColumn
-                    key={c.key}
-                    id={c.key}
-                    title={c.title}
-                    items={groupedSorted[c.key]}
-                    onSelect={(it) => {
-                      setSelected(it);
-                      onSelectedIssueChange?.(it.id);
+                    key={column.key}
+                    id={column.key}
+                    title={column.title}
+                    items={groupedSorted[column.key]}
+                    onSelect={(issue) => {
+                      setSelected(issue);
+                      onSelectedIssueChange?.(issue.id);
                     }}
                     projectKey={projectKey}
                     memberNameById={memberNameById}
                     sortBy={sortBy}
                     onChangeSortBy={setSortBy}
-                    wipLimit={c.key === "IN_PROGRESS" ? wipLimit : null}
+                    wipLimit={column.key === "IN_PROGRESS" ? wipLimit : null}
                     onChangeWipLimit={setWipLimit}
-                    collapsed={c.key === "DONE" ? collapseDone : false}
-                    onToggleCollapsed={c.key === "DONE" ? () => setCollapseDone((v) => !v) : undefined}
+                    collapsed={column.key === "DONE" ? collapseDone : false}
+                    onToggleCollapsed={column.key === "DONE" ? () => setCollapseDone((value) => !value) : undefined}
                   />
                 ))}
               </div>
@@ -319,8 +295,8 @@ export function KanbanBoard({
                         <StatusPill status={activeIssue.status} />
                         <PriorityBadge priority={activeIssue.priority} />
                       </div>
-                      <div className="mt-2 text-xs text-muted-foreground line-clamp-2">
-                        {activeIssue.description?.trim() ? activeIssue.description : "No description"}
+                      <div className="mt-2 line-clamp-2 text-xs text-muted-foreground">
+                        {activeIssue.description?.trim() ? activeIssue.description : t("common.noDescription")}
                       </div>
                     </Card>
                   </div>
@@ -331,14 +307,13 @@ export function KanbanBoard({
         </>
       )}
 
-      {/* Drawer should also stay mounted */}
       <IssueDrawer
         key={selected?.id ?? "none"}
         projectId={projectId}
         issue={selected}
         open={!!selected}
-        onOpenChange={(o) => {
-          if (!o) {
+        onOpenChange={(open) => {
+          if (!open) {
             setSelected(null);
             onSelectedIssueChange?.(null);
           }

@@ -1,5 +1,6 @@
 import type { Issue } from "@/features/issues/api/issues.api";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useI18n } from "@/features/i18n/i18n";
 import { IssueTypeBadge } from "@/widgets/issues/issue-type-badge";
 
 export function SubtaskList({
@@ -9,8 +10,10 @@ export function SubtaskList({
   items: Issue[];
   onToggleDone?: (issue: Issue, checked: boolean) => void;
 }) {
+  const { t } = useI18n();
+
   if (!items.length) {
-    return <div className="text-sm text-muted-foreground">No subtasks yet</div>;
+    return <div className="text-sm text-muted-foreground">{t("issue.noSubtasksYet")}</div>;
   }
 
   return (
@@ -19,22 +22,16 @@ export function SubtaskList({
         const checked = item.status === "DONE";
 
         return (
-          <div
-            key={item.id}
-            className="rounded-lg border p-3 flex items-center gap-3"
-          >
-            <Checkbox
-              checked={checked}
-              onCheckedChange={(v) => onToggleDone?.(item, !!v)}
-            />
+          <div key={item.id} className="flex items-center gap-3 rounded-lg border p-3">
+            <Checkbox checked={checked} onCheckedChange={(v) => onToggleDone?.(item, !!v)} />
 
             <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex flex-wrap items-center gap-2">
                 <IssueTypeBadge type={item.type} />
-                <div className="text-sm font-medium truncate">{item.title}</div>
+                <div className="truncate text-sm font-medium">{item.title}</div>
               </div>
               <div className="mt-1 text-xs text-muted-foreground">
-                {item.priority} · {item.status}
+                {t(`priority.${item.priority}`)} · {t(`status.${item.status}`)}
               </div>
             </div>
           </div>

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { useI18n } from "@/features/i18n/i18n";
 
 export function CommentEditor({
   disabled,
@@ -12,6 +13,7 @@ export function CommentEditor({
   onSubmit: (content: string) => Promise<void> | void;
 }) {
   const [value, setValue] = useState("");
+  const { t } = useI18n();
 
   return (
     <div className="space-y-2">
@@ -19,7 +21,7 @@ export function CommentEditor({
         value={value}
         onChange={(e) => setValue(e.target.value)}
         rows={3}
-        placeholder="Write a comment… Use @username to mention"
+        placeholder={t("issue.writeComment")}
         disabled={disabled}
       />
       <Button
@@ -31,7 +33,7 @@ export function CommentEditor({
           setValue("");
         }}
       >
-        {isSubmitting ? "Posting..." : "Post comment"}
+        {isSubmitting ? t("issue.posting") : t("issue.postComment")}
       </Button>
     </div>
   );

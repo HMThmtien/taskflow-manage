@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { CreateIssueDialog } from "@/widgets/issues/create-issue-dialog";
 import { useHotkeys, isTypingTarget } from "@/hooks/use-hotkeys";
 import { ProjectMembersPanel } from "@/features/project-members/project-members-panel";
+import { useI18n } from "@/features/i18n/i18n";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -26,6 +27,7 @@ function normalizeTab(v: string | null): TabKey {
 export default function ProjectDetailPage() {
   const { projectId } = useParams();
   const [params, setParams] = useSearchParams();
+  const { t } = useI18n();
 
   const tabFromUrl = useMemo(() => normalizeTab(params.get("tab")), [params]);
   const issueIdFromUrl = params.get("issueId");
@@ -96,7 +98,7 @@ export default function ProjectDetailPage() {
     return (
       <Card className="shadow-sm">
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium">Failed to load project</CardTitle>
+          <CardTitle className="text-sm font-medium">{t("project.failedToLoad")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="text-sm text-muted-foreground">
@@ -104,7 +106,7 @@ export default function ProjectDetailPage() {
           </div>
           <Button variant="outline" onClick={() => refetch()} disabled={isFetching}>
             <RefreshCcw className={`mr-2 h-4 w-4 ${isFetching ? "animate-spin" : ""}`} />
-            Retry
+            {t("common.retry")}
           </Button>
         </CardContent>
       </Card>
@@ -154,10 +156,10 @@ export default function ProjectDetailPage() {
       <Tabs value={tab} onValueChange={(v) => setTabAndUrl(v as TabKey)} className="w-full">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <TabsList>
-            <TabsTrigger value="board">Board</TabsTrigger>
-            <TabsTrigger value="backlog">Backlog</TabsTrigger>
-            <TabsTrigger value="members">Members</TabsTrigger>
-            <TabsTrigger value="settings">Settings</TabsTrigger>
+            <TabsTrigger value="board">{t("project.tabs.board")}</TabsTrigger>
+            <TabsTrigger value="backlog">{t("project.tabs.backlog")}</TabsTrigger>
+            <TabsTrigger value="members">{t("project.tabs.members")}</TabsTrigger>
+            <TabsTrigger value="settings">{t("project.tabs.settings")}</TabsTrigger>
           </TabsList>
 
           <div className="flex items-center gap-2">
@@ -166,15 +168,12 @@ export default function ProjectDetailPage() {
                 {tab === "board" ? (
                   <div className="hidden md:flex items-center gap-2 text-xs text-muted-foreground mr-2">
                     <Keyboard className="h-4 w-4" />
-                    <span>
-                      Shortcuts: <span className="font-medium text-foreground">N</span> new issue,{" "}
-                      <span className="font-medium text-foreground">/</span> search
-                    </span>
+                    <span>{t("project.shortcuts.label")}</span>
                   </div>
                 ) : null}
 
                 <Button onClick={() => setOpenCreate(true)} className="whitespace-nowrap">
-                  New issue
+                  {t("common.newIssue")}
                 </Button>
               </>
             ) : null}

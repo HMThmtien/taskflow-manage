@@ -1,14 +1,7 @@
+import type { IssueType } from "@/features/issues/api/issues.api";
+import { useI18n } from "@/features/i18n/i18n";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import type { IssueType } from "@/features/issues/api/issues.api";
-
-const labelMap: Record<IssueType, string> = {
-  TASK: "Task",
-  BUG: "Bug",
-  STORY: "Story",
-  EPIC: "Epic",
-  SUBTASK: "Subtask",
-};
 
 const classMap: Record<IssueType, string> = {
   TASK: "border-slate-300 text-slate-700 dark:text-slate-300",
@@ -19,14 +12,12 @@ const classMap: Record<IssueType, string> = {
 };
 
 export function IssueTypeBadge({ type }: { type?: IssueType | null }) {
+  const { t } = useI18n();
   if (!type) return null;
 
   return (
-    <Badge
-      variant="outline"
-      className={cn("text-[11px] px-2 py-0.5", classMap[type])}
-    >
-      {labelMap[type]}
+    <Badge variant="outline" className={cn("px-2 py-0.5 text-[11px]", classMap[type])}>
+      {t(`issueType.${type}`)}
     </Badge>
   );
 }

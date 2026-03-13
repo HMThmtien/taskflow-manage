@@ -17,10 +17,11 @@ export const profileQueryKeys = {
   preferences: ['profile', 'preferences'] as const,
 }
 
-export function useMyProfileQuery() {
+export function useMyProfileQuery(enabled = true) {
   return useQuery({
     queryKey: profileQueryKeys.me,
     queryFn: getMyProfile,
+    enabled,
   })
 }
 

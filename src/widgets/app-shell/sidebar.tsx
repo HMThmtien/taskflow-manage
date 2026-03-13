@@ -13,10 +13,10 @@ import {
   BarChart3,
   UserCircle2,
 } from "lucide-react";
-
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/auth.store";
 import { useNotificationsQuery } from "@/features/notifications/api/notifications.queries";
+import { useI18n } from "@/features/i18n/i18n";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -38,21 +38,21 @@ import {
 
 type NavItem = {
   to: string;
-  label: string;
+  labelKey: string;
   icon: React.ComponentType<{ className?: string }>;
 };
 
 const mainNav: NavItem[] = [
-  { to: "/app/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/app/projects", label: "Projects", icon: FolderKanban },
-  { to: "/app/inbox", label: "Inbox", icon: Inbox },
-  { to: "/app/activity", label: "Activity", icon: Activity },
-  { to: "/app/reports", label: "Reports", icon: BarChart3 },
-  { to: "/app/profile", label: "Profile", icon: UserCircle2 },
+  { to: "/app/dashboard", labelKey: "sidebar.dashboard", icon: LayoutDashboard },
+  { to: "/app/projects", labelKey: "sidebar.projects", icon: FolderKanban },
+  { to: "/app/inbox", labelKey: "sidebar.inbox", icon: Inbox },
+  { to: "/app/activity", labelKey: "sidebar.activity", icon: Activity },
+  { to: "/app/reports", labelKey: "sidebar.reports", icon: BarChart3 },
+  { to: "/app/profile", labelKey: "sidebar.profile", icon: UserCircle2 },
 ];
 
 const adminNav: NavItem[] = [
-  { to: "/app/admin/users", label: "Users", icon: ShieldCheck },
+  { to: "/app/admin/users", labelKey: "sidebar.users", icon: ShieldCheck },
 ];
 
 const SIDEBAR_KEY = "taskflow_sidebar_collapsed";
@@ -85,10 +85,12 @@ function NavItemRow({
   item,
   collapsed,
   badge,
+  label,
 }: {
   item: NavItem;
   collapsed: boolean;
   badge?: number;
+  label: string;
 }) {
   const Icon = item.icon;
 
@@ -97,11 +99,9 @@ function NavItemRow({
       to={item.to}
       className={({ isActive }) =>
         cn(
-          "relative group flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors",
+          "group relative flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors",
           "hover:bg-accent/60",
-          isActive
-            ? "text-foreground"
-            : "text-muted-foreground hover:text-foreground"
+          isActive ? "text-foreground" : "text-muted-foreground hover:text-foreground"
         )
       }
     >
@@ -116,12 +116,10 @@ function NavItemRow({
           <Icon
             className={cn(
               "h-4 w-4 transition-colors",
-              isActive
-                ? "text-primary"
-                : "text-muted-foreground group-hover:text-foreground"
+              isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground"
             )}
           />
-          {!collapsed ? <span className="font-medium">{item.label}</span> : null}
+          {!collapsed ? <span className="font-medium">{label}</span> : null}
           {!collapsed && badge && badge > 0 ? (
             <Badge variant="secondary" className="ml-auto min-w-5 justify-center px-1.5 text-[10px]">
               {badge > 99 ? "99+" : badge}
@@ -137,7 +135,7 @@ function NavItemRow({
   return (
     <Tooltip>
       <TooltipTrigger asChild>{link}</TooltipTrigger>
-      <TooltipContent side="right">{item.label}</TooltipContent>
+      <TooltipContent side="right">{label}</TooltipContent>
     </Tooltip>
   );
 }
@@ -149,7 +147,7 @@ export function Sidebar() {
   const isAdmin = role === "ADMIN";
   const notificationsQ = useNotificationsQuery({ page: 1, pageSize: 1 });
   const unreadCount = notificationsQ.data?.unreadCount ?? 0;
-
+  const { t } = useI18n();
   const [collapsed, setCollapsed] = React.useState(getInitialCollapsed);
 
   React.useEffect(() => {
@@ -162,7 +160,7 @@ export function Sidebar() {
     .split(" ")
     .filter(Boolean)
     .slice(0, 2)
-    .map((s) => s[0]?.toUpperCase())
+    .map((segment) => segment[0]?.toUpperCase())
     .join("");
 
   return (
@@ -188,11 +186,9 @@ export function Sidebar() {
 
               {!collapsed ? (
                 <div className="min-w-0">
-                  <div className="text-base font-semibold leading-none">
-                    TaskFlow
-                  </div>
+                  <div className="text-base font-semibold leading-none">TaskFlow</div>
                   <div className="mt-1 text-xs text-muted-foreground">
-                    SaaS Dashboard
+                    {t("sidebar.subtitle")}
                   </div>
                 </div>
               ) : null}
@@ -203,7 +199,7 @@ export function Sidebar() {
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => setCollapsed((v) => !v)}
+                  onClick={() => setCollapsed((value) => !value)}
                   className="shrink-0"
                 >
                   {collapsed ? (
@@ -214,7 +210,7 @@ export function Sidebar() {
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="right">
-                {collapsed ? "Expand" : "Collapse"}
+                {collapsed ? t("common.expand") : t("common.collapse")}
               </TooltipContent>
             </Tooltip>
           </div>
@@ -224,12 +220,13 @@ export function Sidebar() {
 
         <nav className="flex-1 space-y-2 overflow-y-auto p-2">
           <div className="space-y-1">
-            <SectionTitle collapsed={collapsed}>MAIN</SectionTitle>
+            <SectionTitle collapsed={collapsed}>{t("common.main")}</SectionTitle>
             {mainNav.map((item) => (
               <NavItemRow
                 key={item.to}
                 item={item}
                 collapsed={collapsed}
+                label={t(item.labelKey)}
                 badge={item.to === "/app/inbox" ? unreadCount : undefined}
               />
             ))}
@@ -237,9 +234,14 @@ export function Sidebar() {
 
           {isAdmin ? (
             <div className="space-y-1">
-              <SectionTitle collapsed={collapsed}>ADMIN</SectionTitle>
+              <SectionTitle collapsed={collapsed}>{t("common.admin")}</SectionTitle>
               {adminNav.map((item) => (
-                <NavItemRow key={item.to} item={item} collapsed={collapsed} />
+                <NavItemRow
+                  key={item.to}
+                  item={item}
+                  collapsed={collapsed}
+                  label={t(item.labelKey)}
+                />
               ))}
             </div>
           ) : null}
@@ -257,37 +259,33 @@ export function Sidebar() {
                 )}
               >
                 <Avatar className="h-9 w-9">
-                  <AvatarFallback className="text-xs">
-                    {initials || "U"}
-                  </AvatarFallback>
+                  <AvatarFallback className="text-xs">{initials || "U"}</AvatarFallback>
                 </Avatar>
 
                 {!collapsed ? (
                   <div className="min-w-0 flex-1 text-left">
                     <div className="truncate text-sm font-medium">
-                      {username ?? "Unknown"}
+                      {username ?? t("common.unknown")}
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      Role: {role ?? "—"}
+                      {t("sidebar.role", { role: role ?? "-" })}
                     </div>
                   </div>
                 ) : null}
 
-                {!collapsed ? (
-                  <UserRound className="h-4 w-4 text-muted-foreground" />
-                ) : null}
+                {!collapsed ? <UserRound className="h-4 w-4 text-muted-foreground" /> : null}
               </button>
             </DropdownMenuTrigger>
 
             <DropdownMenuContent align="start" className="w-56">
-              <DropdownMenuLabel>Account</DropdownMenuLabel>
+              <DropdownMenuLabel>{t("sidebar.account")}</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 onClick={() => logout()}
                 className="text-destructive focus:text-destructive"
               >
                 <LogOut className="mr-2 h-4 w-4" />
-                Logout
+                {t("common.logout")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
