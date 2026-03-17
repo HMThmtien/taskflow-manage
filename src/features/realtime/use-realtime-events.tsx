@@ -1,11 +1,19 @@
 import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
+import { ToastAction } from "@/components/ui/toast";
+import {
+  applyIncomingNotification,
+  notificationsKeys,
+  type NotificationsListParams,
+} from "@/features/notifications/api/notifications.queries";
+import { getNotificationRoute } from "@/features/notifications/lib/notification-navigation";
+import type { NotificationItem, NotificationsResponse } from "@/features/notifications/types/notifications.types";
+import type { IssueActivity } from "@/features/issues/api/useIssueActivities";
+import type { IssueComment } from "@/features/issues/api/useIssueComments";
+import { toast } from "@/hooks/use-toast";
 import { openAuthEventStream } from "@/services/api/client";
 import { useAuthStore } from "@/stores/auth.store";
-import type { IssueComment } from "@/features/issues/api/useIssueComments";
-import type { IssueActivity } from "@/features/issues/api/useIssueActivities";
-import type { NotificationItem, NotificationsResponse } from "@/features/notifications/types/notifications.types";
-import { notificationsKeys } from "@/features/notifications/api/notifications.queries";
 
 type RealtimeEnvelope = {
   id: string;
@@ -26,6 +34,7 @@ function upsertById<T extends { id: string }>(items: T[], nextItem: T, mode: "pr
 
 export function useRealtimeEvents() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const accessToken = useAuthStore((state) => state.tokens?.accessToken);
   const retryRef = useRef<number | null>(null);
   const [retryTick, setRetryTick] = useState(0);
@@ -79,24 +88,33 @@ export function useRealtimeEvents() {
           const notification = envelope.payload?.notification as NotificationItem | undefined;
           if (!notification) return;
 
-          queryClient.setQueriesData<NotificationsResponse>(
-            { queryKey: notificationsKeys.all },
-            (current) => {
-              if (!current) return current;
+          const cachedQueries = queryClient.getQueriesData<NotificationsResponse>({
+            queryKey: notificationsKeys.all,
+          });
 
-              const isUnreadOnly = current.items.every((item) => !item.isRead) && current.items.length > 0;
-              const nextItems = notification.isRead && isUnreadOnly
-                ? current.items
-                : upsertById(current.items, notification, "prepend").slice(0, current.pageSize);
+          for (const [queryKey, current] of cachedQueries) {
+            if (!current) continue;
 
-              return {
-                ...current,
-                items: nextItems,
-                total: current.total + (current.items.some((item) => item.id === notification.id) ? 0 : 1),
-                unreadCount: current.unreadCount + (notification.isRead ? 0 : 1),
-              };
-            }
-          );
+            const [, params] = queryKey;
+            queryClient.setQueryData<NotificationsResponse>(queryKey, () =>
+              applyIncomingNotification(
+                current,
+                notification,
+                (params as NotificationsListParams | undefined) ?? undefined
+              )
+            );
+          }
+
+          const route = getNotificationRoute(notification);
+          toast({
+            title: notification.title,
+            description: notification.body,
+            action: route ? (
+              <ToastAction altText="Open notification" onClick={() => navigate(route)}>
+                Open
+              </ToastAction>
+            ) : undefined,
+          });
         }
       },
       onError: () => {
@@ -115,5 +133,5 @@ export function useRealtimeEvents() {
         retryRef.current = null;
       }
     };
-  }, [accessToken, queryClient, retryTick]);
+  }, [accessToken, navigate, queryClient, retryTick]);
 }

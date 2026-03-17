@@ -5,9 +5,11 @@ import {
   completeSprint,
   createSprint,
   getBacklogIssues,
+  getSprintMetrics,
   getSprints,
   startSprint,
   updateSprint,
+  type CompleteSprintPayload,
   type SprintPayload,
 } from "./sprints.api";
 
@@ -15,6 +17,7 @@ export const sprintKeys = {
   all: ["sprints"] as const,
   project: (projectId: string) => [...sprintKeys.all, projectId] as const,
   backlog: (projectId: string) => [...sprintKeys.project(projectId), "backlog"] as const,
+  metrics: (projectId: string, sprintId: string) => [...sprintKeys.project(projectId), sprintId, "metrics"] as const,
 };
 
 export function useSprintsQuery(projectId: string) {
@@ -33,9 +36,18 @@ export function useBacklogIssuesQuery(projectId: string) {
   });
 }
 
+export function useSprintMetricsQuery(projectId: string, sprintId?: string | null, enabled = true) {
+  return useQuery({
+    queryKey: sprintKeys.metrics(projectId, sprintId ?? "unknown"),
+    queryFn: () => getSprintMetrics(projectId, sprintId ?? ""),
+    enabled: !!projectId && !!sprintId && enabled,
+  });
+}
+
 function invalidatePlanning(qc: ReturnType<typeof useQueryClient>, projectId: string) {
   qc.invalidateQueries({ queryKey: sprintKeys.project(projectId) });
   qc.invalidateQueries({ queryKey: sprintKeys.backlog(projectId) });
+  qc.invalidateQueries({ queryKey: [...sprintKeys.project(projectId)], predicate: (query) => query.queryKey.includes("metrics") });
   qc.invalidateQueries({ queryKey: issueKeys.project(projectId) });
 }
 
@@ -67,7 +79,8 @@ export function useStartSprintMutation(projectId: string) {
 export function useCompleteSprintMutation(projectId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (sprintId: string) => completeSprint(projectId, sprintId),
+    mutationFn: ({ sprintId, payload }: { sprintId: string; payload: CompleteSprintPayload }) =>
+      completeSprint(projectId, sprintId, payload),
     onSuccess: () => invalidatePlanning(qc, projectId),
   });
 }

@@ -1,11 +1,23 @@
-import { useEffect, useMemo, useState } from "react";
-import { CalendarRange, Flag, Layers3, PlayCircle, Plus, Rocket, SquareKanban } from "lucide-react";
+import { useEffect, useMemo, useState, type DragEvent } from "react";
+import {
+  CalendarRange,
+  Flag,
+  Layers3,
+  PlayCircle,
+  Plus,
+  Rocket,
+  SquareKanban,
+  TrendingUp,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DatePickerField } from "@/components/ui/date-picker-field";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -14,12 +26,19 @@ import type { Issue } from "@/features/issues/api/issues.api";
 import { useIssuesQuery } from "@/features/issues/api/issues.queries";
 import { useI18n } from "@/features/i18n/i18n";
 import { useMyProjectRoleQuery, useProjectMembersQuery } from "@/features/project-members/api/project-members.queries";
-import type { Sprint, SprintPayload } from "@/features/sprints/api/sprints.api";
+import type {
+  CompleteSprintPayload,
+  Sprint,
+  SprintCompletionAction,
+  SprintMetrics,
+  SprintPayload,
+} from "@/features/sprints/api/sprints.api";
 import {
   useAssignIssueToSprintMutation,
   useBacklogIssuesQuery,
   useCompleteSprintMutation,
   useCreateSprintMutation,
+  useSprintMetricsQuery,
   useSprintsQuery,
   useStartSprintMutation,
   useUpdateSprintMutation,
@@ -39,8 +58,17 @@ type SprintFormState = {
   endDate: string;
 };
 
+type CompleteSprintFormState = {
+  completionAction: SprintCompletionAction;
+  targetSprintId: string;
+};
+
 function emptyForm(): SprintFormState {
   return { name: "", goal: "", description: "", startDate: "", endDate: "" };
+}
+
+function emptyCompleteForm(): CompleteSprintFormState {
+  return { completionAction: "MOVE_TO_BACKLOG", targetSprintId: "" };
 }
 
 function normalizePayload(state: SprintFormState): SprintPayload {
@@ -69,6 +97,19 @@ function formatDateRange(
   return start ? t("backlog.startsAt", { date: start }) : t("backlog.endsAt", { date: end });
 }
 
+function getSprintMetricsSummary(sprint: Sprint, liveMetrics?: SprintMetrics | null) {
+  const total = liveMetrics?.totalIssues ?? sprint.completedTotalIssues ?? sprint.issueCount ?? 0;
+  const done = liveMetrics?.doneIssues ?? sprint.completedDoneIssues ?? 0;
+  const inProgress = liveMetrics?.inProgressIssues ?? sprint.completedInProgressIssues ?? 0;
+  const todo = liveMetrics?.todoIssues ?? sprint.completedTodoIssues ?? Math.max(0, total - done - inProgress);
+  const unfinished = liveMetrics?.unfinishedIssues ?? Math.max(0, total - done);
+  const completionPercent =
+    liveMetrics?.completionPercent ??
+    (total > 0 ? Math.round((done * 100) / total) : 0);
+
+  return { total, done, inProgress, todo, unfinished, completionPercent };
+}
+
 function IssuePlanningList({
   title,
   issues,
@@ -76,8 +117,11 @@ function IssuePlanningList({
   canPlanIssues,
   assignPending,
   selectedIssueId,
+  draggableIssues = false,
   onSelectIssue,
   onAssign,
+  onDragIssueStart,
+  onDragIssueEnd,
 }: {
   title: string;
   issues: Issue[];
@@ -85,8 +129,11 @@ function IssuePlanningList({
   canPlanIssues: boolean;
   assignPending: boolean;
   selectedIssueId?: string | null;
+  draggableIssues?: boolean;
   onSelectIssue: (issue: Issue | null) => void;
   onAssign: (issueId: string, sprintId?: string | null) => void;
+  onDragIssueStart?: (issueId: string) => void;
+  onDragIssueEnd?: () => void;
 }) {
   const { t } = useI18n();
 
@@ -106,8 +153,12 @@ function IssuePlanningList({
           {issues.map((issue) => (
             <div
               key={issue.id}
+              draggable={draggableIssues && canPlanIssues}
+              onDragStart={() => onDragIssueStart?.(issue.id)}
+              onDragEnd={() => onDragIssueEnd?.()}
               className={cn(
                 "rounded-xl border bg-card/70 p-3 transition-colors",
+                draggableIssues && canPlanIssues && "cursor-grab active:cursor-grabbing",
                 selectedIssueId === issue.id ? "border-primary/40 ring-1 ring-primary/20" : "hover:bg-accent/30"
               )}
             >
@@ -247,6 +298,196 @@ function SprintDialog({
   );
 }
 
+function CompleteSprintDialog({
+  open,
+  sprint,
+  metrics,
+  plannedSprints,
+  state,
+  saving,
+  onOpenChange,
+  onChange,
+  onSubmit,
+}: {
+  open: boolean;
+  sprint: Sprint | null;
+  metrics?: SprintMetrics | null;
+  plannedSprints: Sprint[];
+  state: CompleteSprintFormState;
+  saving: boolean;
+  onOpenChange: (open: boolean) => void;
+  onChange: (next: CompleteSprintFormState) => void;
+  onSubmit: () => void;
+}) {
+  const { t } = useI18n();
+  const unfinishedCount = metrics?.unfinishedIssues ?? 0;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[640px]">
+        <DialogHeader>
+          <DialogTitle>{t("backlog.completeSprint")}</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-5">
+          <div className="rounded-xl border bg-muted/30 p-4">
+            <div className="font-medium text-foreground">{sprint?.name}</div>
+            <div className="mt-1 text-sm text-muted-foreground">
+              {unfinishedCount > 0
+                ? t("backlog.completeSprintDescription", { count: unfinishedCount })
+                : t("backlog.completeSprintNoUnfinished")}
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div className="rounded-xl border p-3">
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">{t("backlog.totalIssues")}</div>
+              <div className="mt-1 text-2xl font-semibold">{metrics?.totalIssues ?? 0}</div>
+            </div>
+            <div className="rounded-xl border p-3">
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">{t("backlog.doneIssues")}</div>
+              <div className="mt-1 text-2xl font-semibold">{metrics?.doneIssues ?? 0}</div>
+            </div>
+            <div className="rounded-xl border p-3">
+              <div className="text-xs uppercase tracking-wide text-muted-foreground">{t("backlog.unfinishedIssues")}</div>
+              <div className="mt-1 text-2xl font-semibold">{unfinishedCount}</div>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <div className="text-sm font-medium">{t("backlog.unfinishedAction")}</div>
+            <RadioGroup
+              value={state.completionAction}
+              onValueChange={(value) =>
+                onChange({
+                  completionAction: value as SprintCompletionAction,
+                  targetSprintId: value === "MOVE_TO_SPRINT" ? state.targetSprintId : "",
+                })
+              }
+              className="space-y-3"
+            >
+              <label className="flex items-start gap-3 rounded-xl border p-3">
+                <RadioGroupItem value="MOVE_TO_BACKLOG" id="move-to-backlog" className="mt-1" />
+                <div className="space-y-1">
+                  <div className="font-medium">{t("backlog.moveUnfinishedToBacklog")}</div>
+                  <div className="text-sm text-muted-foreground">{t("backlog.moveUnfinishedToBacklogHint")}</div>
+                </div>
+              </label>
+
+              <label className="flex items-start gap-3 rounded-xl border p-3">
+                <RadioGroupItem value="MOVE_TO_SPRINT" id="move-to-sprint" className="mt-1" />
+                <div className="space-y-1">
+                  <div className="font-medium">{t("backlog.moveUnfinishedToSprint")}</div>
+                  <div className="text-sm text-muted-foreground">{t("backlog.moveUnfinishedToSprintHint")}</div>
+                </div>
+              </label>
+            </RadioGroup>
+          </div>
+
+          {state.completionAction === "MOVE_TO_SPRINT" ? (
+            <div className="space-y-2">
+              <Label>{t("backlog.targetSprint")}</Label>
+              <Select
+                value={state.targetSprintId}
+                onValueChange={(value) => onChange({ ...state, targetSprintId: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={t("backlog.selectTargetSprint")} />
+                </SelectTrigger>
+                <SelectContent>
+                  {plannedSprints.map((plannedSprint) => (
+                    <SelectItem key={plannedSprint.id} value={plannedSprint.id}>
+                      {plannedSprint.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
+            {t("common.cancel")}
+          </Button>
+          <Button
+            onClick={onSubmit}
+            disabled={
+              saving ||
+              (state.completionAction === "MOVE_TO_SPRINT" &&
+                (!state.targetSprintId || plannedSprints.length === 0))
+            }
+          >
+            {saving ? t("common.saving") : t("backlog.completeSprint")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function SprintMetricsCard({
+  sprint,
+  metrics,
+  dragActive,
+  onDropIssue,
+  onDragOver,
+  onDragLeave,
+}: {
+  sprint: Sprint;
+  metrics?: SprintMetrics | null;
+  dragActive: boolean;
+  onDropIssue: () => void;
+  onDragOver: (event: DragEvent<HTMLDivElement>) => void;
+  onDragLeave: () => void;
+}) {
+  const { t } = useI18n();
+  const summary = getSprintMetricsSummary(sprint, metrics);
+
+  return (
+    <div
+      className={cn(
+        "rounded-2xl border bg-primary/[0.04] p-4 transition-colors",
+        dragActive && "border-primary border-dashed bg-primary/10"
+      )}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDropIssue}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <div className="text-sm font-medium">{t("backlog.progressOverview")}</div>
+          <div className="text-xs text-muted-foreground">{t("backlog.progressOverviewHint")}</div>
+        </div>
+        <Badge variant="outline">{summary.completionPercent}%</Badge>
+      </div>
+
+      <Progress value={summary.completionPercent} className="mt-4" />
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <div className="rounded-xl border bg-background/70 p-3">
+          <div className="text-xs uppercase tracking-wide text-muted-foreground">{t("backlog.totalIssues")}</div>
+          <div className="mt-1 text-xl font-semibold">{summary.total}</div>
+        </div>
+        <div className="rounded-xl border bg-background/70 p-3">
+          <div className="text-xs uppercase tracking-wide text-muted-foreground">{t("backlog.doneIssues")}</div>
+          <div className="mt-1 text-xl font-semibold">{summary.done}</div>
+        </div>
+        <div className="rounded-xl border bg-background/70 p-3">
+          <div className="text-xs uppercase tracking-wide text-muted-foreground">{t("backlog.inProgressIssues")}</div>
+          <div className="mt-1 text-xl font-semibold">{summary.inProgress}</div>
+        </div>
+      </div>
+
+      {dragActive ? (
+        <div className="mt-4 rounded-xl border border-dashed px-3 py-2 text-sm text-primary">
+          {t("backlog.dropIssueHere")}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function ProjectBacklogPanel({
   projectId,
   onCreateIssue,
@@ -277,6 +518,7 @@ export function ProjectBacklogPanel({
   const assignableSprints = sprints.filter((s) => s.status !== "COMPLETED");
 
   const activeIssuesQ = useIssuesQuery(projectId, { sprintId: activeSprint?.id }, !!activeSprint?.id);
+  const activeMetricsQ = useSprintMetricsQuery(projectId, activeSprint?.id, !!activeSprint?.id);
 
   const role = roleQ.data?.role;
   const canManageSprints = role === "OWNER" || role === "ADMIN";
@@ -284,9 +526,13 @@ export function ProjectBacklogPanel({
   const members = membersQ.data?.map((member) => ({ userId: member.userId, username: member.username })) ?? [];
 
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [completeDialogOpen, setCompleteDialogOpen] = useState(false);
   const [editingSprint, setEditingSprint] = useState<Sprint | null>(null);
   const [form, setForm] = useState<SprintFormState>(emptyForm());
+  const [completeForm, setCompleteForm] = useState<CompleteSprintFormState>(emptyCompleteForm());
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
+  const [draggingIssueId, setDraggingIssueId] = useState<string | null>(null);
+  const [dragOverSprintId, setDragOverSprintId] = useState<string | null>(null);
 
   const visibleIssues = useMemo(() => {
     const map = new Map<string, Issue>();
@@ -300,6 +546,12 @@ export function ProjectBacklogPanel({
     const match = visibleIssues.find((issue) => issue.id === selectedIssueId);
     if (match && selectedIssue?.id !== match.id) setSelectedIssue(match);
   }, [selectedIssue?.id, selectedIssueId, visibleIssues]);
+
+  useEffect(() => {
+    if (completeDialogOpen && completeForm.completionAction === "MOVE_TO_SPRINT" && plannedSprints.length === 0) {
+      setCompleteForm((current) => ({ ...current, completionAction: "MOVE_TO_BACKLOG", targetSprintId: "" }));
+    }
+  }, [completeDialogOpen, completeForm.completionAction, plannedSprints.length]);
 
   function openCreateSprint() {
     setEditingSprint(null);
@@ -317,6 +569,14 @@ export function ProjectBacklogPanel({
       endDate: sprint.endDate ?? "",
     });
     setDialogOpen(true);
+  }
+
+  function openCompleteSprintDialog() {
+    setCompleteForm({
+      completionAction: plannedSprints.length > 0 ? "MOVE_TO_SPRINT" : "MOVE_TO_BACKLOG",
+      targetSprintId: plannedSprints[0]?.id ?? "",
+    });
+    setCompleteDialogOpen(true);
   }
 
   async function saveSprint() {
@@ -351,6 +611,9 @@ export function ProjectBacklogPanel({
         description: e instanceof Error ? e.message : t("issue.unknownError"),
         variant: "destructive",
       });
+    } finally {
+      setDraggingIssueId(null);
+      setDragOverSprintId(null);
     }
   }
 
@@ -367,10 +630,19 @@ export function ProjectBacklogPanel({
     }
   }
 
-  async function completeSprint(sprintId: string) {
+  async function submitCompleteSprint() {
+    if (!activeSprint) return;
+
+    const payload: CompleteSprintPayload = {
+      completionAction: completeForm.completionAction,
+      targetSprintId: completeForm.completionAction === "MOVE_TO_SPRINT" ? completeForm.targetSprintId : null,
+    };
+
     try {
-      await completeSprintMut.mutateAsync(sprintId);
+      await completeSprintMut.mutateAsync({ sprintId: activeSprint.id, payload });
       toast({ title: t("backlog.sprintCompleted") });
+      setCompleteDialogOpen(false);
+      setCompleteForm(emptyCompleteForm());
     } catch (e: unknown) {
       toast({
         title: t("backlog.completeSprintFailed"),
@@ -378,6 +650,17 @@ export function ProjectBacklogPanel({
         variant: "destructive",
       });
     }
+  }
+
+  function handleDropToSprint(sprintId: string | null) {
+    if (!draggingIssueId || !canPlanIssues || assignIssueMut.isPending) return;
+    void changeIssueSprint(draggingIssueId, sprintId);
+  }
+
+  function handleDropZoneDragOver(event: DragEvent<HTMLDivElement>, sprintId: string) {
+    if (!draggingIssueId) return;
+    event.preventDefault();
+    setDragOverSprintId(sprintId);
   }
 
   const isLoading = sprintsQ.isLoading || backlogQ.isLoading;
@@ -456,11 +739,17 @@ export function ProjectBacklogPanel({
                   canPlanIssues={canPlanIssues}
                   assignPending={assignIssueMut.isPending}
                   selectedIssueId={selectedIssueId}
+                  draggableIssues
                   onSelectIssue={(issue) => {
                     setSelectedIssue(issue);
                     onSelectedIssueChange?.(issue?.id ?? null);
                   }}
                   onAssign={changeIssueSprint}
+                  onDragIssueStart={setDraggingIssueId}
+                  onDragIssueEnd={() => {
+                    setDraggingIssueId(null);
+                    setDragOverSprintId(null);
+                  }}
                 />
               </CardContent>
             </Card>
@@ -478,43 +767,50 @@ export function ProjectBacklogPanel({
               <CardContent className="space-y-4">
                 {activeSprint ? (
                   <>
-                    <div className="rounded-2xl border bg-primary/[0.04] p-4">
-                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                        <div className="space-y-2">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="text-lg font-semibold">{activeSprint.name}</h3>
-                            <Badge variant={sprintTone(activeSprint.status)}>{activeSprint.status}</Badge>
-                            <Badge variant="outline">{t("backlog.issuesCount", { count: activeSprint.issueCount })}</Badge>
-                          </div>
-                          <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-                            <span className="inline-flex items-center gap-1">
-                              <CalendarRange className="h-4 w-4" />
-                              {formatDateRange(t, activeSprint.startDate, activeSprint.endDate)}
-                            </span>
-                          </div>
-                          {activeSprint.goal ? (
-                            <div className="rounded-xl border bg-background/70 px-3 py-2 text-sm">
-                              <span className="font-medium text-foreground">{t("backlog.goalLabel")}</span> {activeSprint.goal}
-                            </div>
-                          ) : null}
-                          {activeSprint.description ? (
-                            <p className="text-sm text-muted-foreground">{activeSprint.description}</p>
-                          ) : null}
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="text-lg font-semibold">{activeSprint.name}</h3>
+                          <Badge variant={sprintTone(activeSprint.status)}>{activeSprint.status}</Badge>
+                          <Badge variant="outline">{t("backlog.issuesCount", { count: activeSprint.issueCount })}</Badge>
                         </div>
+                        <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                          <span className="inline-flex items-center gap-1">
+                            <CalendarRange className="h-4 w-4" />
+                            {formatDateRange(t, activeSprint.startDate, activeSprint.endDate)}
+                          </span>
+                        </div>
+                        {activeSprint.goal ? (
+                          <div className="rounded-xl border bg-background/70 px-3 py-2 text-sm">
+                            <span className="font-medium text-foreground">{t("backlog.goalLabel")}</span> {activeSprint.goal}
+                          </div>
+                        ) : null}
+                        {activeSprint.description ? (
+                          <p className="text-sm text-muted-foreground">{activeSprint.description}</p>
+                        ) : null}
+                      </div>
 
-                        <div className="flex items-center gap-2">
-                          <Button variant="outline" onClick={() => openEditSprint(activeSprint)} disabled={!canManageSprints}>
-                            {t("common.edit")}
-                          </Button>
-                          <Button
-                            onClick={() => completeSprint(activeSprint.id)}
-                            disabled={!canManageSprints || completeSprintMut.isPending}
-                          >
-                            {t("backlog.completeSprint")}
-                          </Button>
-                        </div>
+                      <div className="flex items-center gap-2">
+                        <Button variant="outline" onClick={() => openEditSprint(activeSprint)} disabled={!canManageSprints}>
+                          {t("common.edit")}
+                        </Button>
+                        <Button
+                          onClick={openCompleteSprintDialog}
+                          disabled={!canManageSprints || completeSprintMut.isPending}
+                        >
+                          {t("backlog.completeSprint")}
+                        </Button>
                       </div>
                     </div>
+
+                    <SprintMetricsCard
+                      sprint={activeSprint}
+                      metrics={activeMetricsQ.data}
+                      dragActive={dragOverSprintId === activeSprint.id}
+                      onDragOver={(event) => handleDropZoneDragOver(event, activeSprint.id)}
+                      onDragLeave={() => setDragOverSprintId((current) => (current === activeSprint.id ? null : current))}
+                      onDropIssue={() => handleDropToSprint(activeSprint.id)}
+                    />
 
                     <IssuePlanningList
                       title={t("backlog.sprintScope")}
@@ -555,7 +851,16 @@ export function ProjectBacklogPanel({
                   </div>
                 ) : (
                   plannedSprints.map((sprint) => (
-                    <div key={sprint.id} className="rounded-2xl border p-4">
+                    <div
+                      key={sprint.id}
+                      className={cn(
+                        "rounded-2xl border p-4 transition-colors",
+                        dragOverSprintId === sprint.id && "border-primary border-dashed bg-primary/5"
+                      )}
+                      onDragOver={(event) => handleDropZoneDragOver(event, sprint.id)}
+                      onDragLeave={() => setDragOverSprintId((current) => (current === sprint.id ? null : current))}
+                      onDrop={() => handleDropToSprint(sprint.id)}
+                    >
                       <div className="flex items-start justify-between gap-3">
                         <div className="space-y-2">
                           <div className="flex flex-wrap items-center gap-2">
@@ -571,6 +876,11 @@ export function ProjectBacklogPanel({
                           ) : (
                             <div className="text-sm text-muted-foreground">{t("backlog.noSprintGoalYet")}</div>
                           )}
+                          {dragOverSprintId === sprint.id ? (
+                            <div className="rounded-xl border border-dashed px-3 py-2 text-sm text-primary">
+                              {t("backlog.dropIssueHere")}
+                            </div>
+                          ) : null}
                         </div>
 
                         <div className="flex flex-col items-end gap-2">
@@ -606,26 +916,55 @@ export function ProjectBacklogPanel({
                     {t("backlog.noSprintHistory")}
                   </div>
                 ) : (
-                  completedSprints.map((sprint, index) => (
-                    <div key={sprint.id}>
-                      {index > 0 ? <Separator className="mb-3" /> : null}
-                      <div className="space-y-2">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <div className="font-medium">{sprint.name}</div>
-                          <Badge variant={sprintTone(sprint.status)}>{sprint.status}</Badge>
-                          <Badge variant="outline">{t("backlog.issuesCount", { count: sprint.issueCount })}</Badge>
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          {formatDateRange(t, sprint.startDate, sprint.endDate)}
-                        </div>
-                        {sprint.completedAt ? (
-                          <div className="text-xs text-muted-foreground">
-                            {t("backlog.completedAt", { date: new Date(sprint.completedAt).toLocaleString() })}
+                  completedSprints.map((sprint, index) => {
+                    const summary = getSprintMetricsSummary(sprint);
+                    const targetSprintName = sprint.completedTargetSprintId
+                      ? sprints.find((item) => item.id === sprint.completedTargetSprintId)?.name
+                      : null;
+
+                    return (
+                      <div key={sprint.id}>
+                        {index > 0 ? <Separator className="mb-3" /> : null}
+                        <div className="space-y-3">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="font-medium">{sprint.name}</div>
+                            <Badge variant={sprintTone(sprint.status)}>{sprint.status}</Badge>
+                            <Badge variant="outline">{t("backlog.issuesCount", { count: sprint.issueCount })}</Badge>
                           </div>
-                        ) : null}
+                          <div className="text-sm text-muted-foreground">
+                            {formatDateRange(t, sprint.startDate, sprint.endDate)}
+                          </div>
+                          <div className="grid gap-2 sm:grid-cols-3">
+                            <div className="rounded-xl border p-3">
+                              <div className="text-xs uppercase tracking-wide text-muted-foreground">{t("backlog.totalIssues")}</div>
+                              <div className="mt-1 font-semibold">{summary.total}</div>
+                            </div>
+                            <div className="rounded-xl border p-3">
+                              <div className="text-xs uppercase tracking-wide text-muted-foreground">{t("backlog.doneIssues")}</div>
+                              <div className="mt-1 font-semibold">{summary.done}</div>
+                            </div>
+                            <div className="rounded-xl border p-3">
+                              <div className="text-xs uppercase tracking-wide text-muted-foreground">{t("backlog.unfinishedIssues")}</div>
+                              <div className="mt-1 font-semibold">{summary.unfinished}</div>
+                            </div>
+                          </div>
+                          {sprint.completedAt ? (
+                            <div className="text-xs text-muted-foreground">
+                              {t("backlog.completedAt", { date: new Date(sprint.completedAt).toLocaleString() })}
+                            </div>
+                          ) : null}
+                          {sprint.completionAction ? (
+                            <div className="inline-flex items-center gap-2 rounded-full border bg-muted/40 px-3 py-1 text-xs text-muted-foreground">
+                              <TrendingUp className="h-3.5 w-3.5" />
+                              {sprint.completionAction === "MOVE_TO_SPRINT"
+                                ? t("backlog.historyMovedToSprint", { sprint: targetSprintName ?? t("backlog.anotherSprint") })
+                                : t("backlog.historyMovedToBacklog")}
+                            </div>
+                          ) : null}
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </CardContent>
             </Card>
@@ -647,6 +986,23 @@ export function ProjectBacklogPanel({
         }}
         onChange={setForm}
         onSubmit={saveSprint}
+      />
+
+      <CompleteSprintDialog
+        open={completeDialogOpen}
+        sprint={activeSprint}
+        metrics={activeMetricsQ.data}
+        plannedSprints={plannedSprints}
+        state={completeForm}
+        saving={completeSprintMut.isPending}
+        onOpenChange={(open) => {
+          setCompleteDialogOpen(open);
+          if (!open) {
+            setCompleteForm(emptyCompleteForm());
+          }
+        }}
+        onChange={setCompleteForm}
+        onSubmit={submitCompleteSprint}
       />
 
       <IssueDrawer
