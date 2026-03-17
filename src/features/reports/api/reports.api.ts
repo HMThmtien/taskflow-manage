@@ -1,5 +1,10 @@
 import { authFetchJson } from "@/services/api/client";
-import type { WorkspaceReport } from "../types/reports.types";
+import type {
+  ProjectSummaryReport,
+  ProjectWorkloadReport,
+  SprintProgressReport,
+  WorkspaceReport,
+} from "../types/reports.types";
 
 type ApiResponse<T> = {
   data?: T;
@@ -27,6 +32,30 @@ export async function getWorkspaceReport(params?: {
 
   const res = await authFetchJson<ApiResponse<WorkspaceReport> | WorkspaceReport>(
     `/api/reports/workspace${qs ? `?${qs}` : ""}`
+  );
+
+  return unwrap(res);
+}
+
+export async function getProjectSummaryReport(projectId: string) {
+  const res = await authFetchJson<ApiResponse<ProjectSummaryReport> | ProjectSummaryReport>(
+    `/api/projects/${projectId}/reports/summary`
+  );
+
+  return unwrap(res);
+}
+
+export async function getProjectWorkloadReport(projectId: string) {
+  const res = await authFetchJson<ApiResponse<ProjectWorkloadReport> | ProjectWorkloadReport>(
+    `/api/projects/${projectId}/reports/workload`
+  );
+
+  return unwrap(res);
+}
+
+export async function getProjectSprintProgressReport(projectId: string) {
+  const res = await authFetchJson<ApiResponse<SprintProgressReport> | SprintProgressReport>(
+    `/api/projects/${projectId}/reports/sprint-progress`
   );
 
   return unwrap(res);

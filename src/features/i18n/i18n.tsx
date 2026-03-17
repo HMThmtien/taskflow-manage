@@ -129,6 +129,8 @@ const en: Dictionary = {
       label: "Shortcuts: N new issue, / search",
     },
     failedToLoad: "Failed to load project",
+    overviewTitle: "Project overview",
+    overviewDescription: "A practical summary of execution health for this project.",
   },
   board: {
     todo: "Todo",
@@ -459,6 +461,8 @@ const vi: Dictionary = {
       label: "Phim tat: N tao issue, / tim kiem",
     },
     failedToLoad: "Khong tai duoc du an",
+    overviewTitle: "Tong quan du an",
+    overviewDescription: "Tom tat thuc dung ve tien do va rui ro cua du an nay.",
   },
   board: {
     ...(en.board as Record<string, string | Dictionary>),

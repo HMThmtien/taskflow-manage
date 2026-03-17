@@ -14,6 +14,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { RefreshCcw, Keyboard } from "lucide-react";
+import { useProjectSummaryReportQuery } from "@/features/reports/api/reports.queries";
+import { ProjectOverviewCard } from "@/widgets/project/project-overview-card";
 
 type TabKey = "board" | "backlog" | "members" | "settings";
 
@@ -42,6 +44,7 @@ export default function ProjectDetailPage() {
   const safeProjectId = projectId ?? "";
   const { data: project, isLoading, isError, error, refetch, isFetching } =
     useProjectQuery(safeProjectId);
+  const summaryQ = useProjectSummaryReportQuery(projectId);
 
   useHotkeys((e) => {
     if (e.key === "Escape") {
@@ -152,6 +155,14 @@ export default function ProjectDetailPage() {
           setOpenCreate(true);
         }}
       />
+
+      {summaryQ.data ? (
+        <ProjectOverviewCard
+          summary={summaryQ.data}
+          title={t("project.overviewTitle")}
+          description={t("project.overviewDescription")}
+        />
+      ) : null}
 
       <Tabs value={tab} onValueChange={(v) => setTabAndUrl(v as TabKey)} className="w-full">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
