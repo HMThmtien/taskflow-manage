@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowUpRight } from "lucide-react";
+import { PageState } from "@/components/app/page-state";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/features/i18n/i18n";
 import {
@@ -64,10 +65,22 @@ export default function InboxPage() {
         </div>
       </div>
 
-      {query.isLoading ? <div>{t("common.loading")}</div> : null}
-      {query.isError ? <div className="text-destructive">{t("inbox.error")}</div> : null}
+      {query.isLoading ? (
+        <PageState kind="loading" title={t("common.loading")} description={t("inbox.description")} />
+      ) : null}
+      {query.isError ? (
+        <PageState
+          kind="error"
+          title={t("inbox.error")}
+          description="Notifications could not be loaded right now."
+          actionLabel={t("common.retry")}
+          onAction={() => {
+            void query.refetch();
+          }}
+        />
+      ) : null}
 
-      <div className="space-y-6">
+      {!query.isLoading && !query.isError ? <div className="space-y-6">
         {groupedItems.map((group) => (
           <section key={group.label} className="space-y-3">
             <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -125,9 +138,9 @@ export default function InboxPage() {
         ))}
 
         {!query.isLoading && (query.data?.items.length ?? 0) === 0 ? (
-          <div className="rounded-lg border p-6 text-sm text-muted-foreground">{t("inbox.empty")}</div>
+          <PageState kind="empty" title={t("inbox.empty")} description={t("inbox.description")} />
         ) : null}
-      </div>
+      </div> : null}
     </div>
   );
 }

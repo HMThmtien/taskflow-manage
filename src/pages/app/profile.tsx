@@ -1,3 +1,4 @@
+import { PageState } from "@/components/app/page-state";
 import { useI18n } from "@/features/i18n/i18n";
 import { useMyProfileQuery } from "@/features/profile/api/profile.queries";
 import { ChangePasswordCard } from "@/widgets/profile/change-password-card";
@@ -10,11 +11,21 @@ export default function ProfilePage() {
   const { t } = useI18n();
 
   if (profileQuery.isLoading) {
-    return <div className="p-6">{t("profile.loading")}</div>;
+    return <PageState kind="loading" title={t("profile.loading")} />;
   }
 
   if (profileQuery.isError || !profileQuery.data) {
-    return <div className="p-6 text-destructive">{t("profile.error")}</div>;
+    return (
+      <PageState
+        kind="error"
+        title={t("profile.error")}
+        description="We could not load your profile details right now."
+        actionLabel={t("common.retry")}
+        onAction={() => {
+          void profileQuery.refetch();
+        }}
+      />
+    );
   }
 
   return (
