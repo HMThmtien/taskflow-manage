@@ -708,10 +708,13 @@ export function ProjectBacklogPanel({
   }, [visibleIssues]);
 
   useEffect(() => {
-    if (!selectedIssueId) return;
+    if (!selectedIssueId) {
+      if (selectedIssue) setSelectedIssue(null);
+      return;
+    }
     const match = visibleIssues.find((issue) => issue.id === selectedIssueId);
     if (match && selectedIssue?.id !== match.id) setSelectedIssue(match);
-  }, [selectedIssue?.id, selectedIssueId, visibleIssues]);
+  }, [selectedIssue, selectedIssue?.id, selectedIssueId, visibleIssues]);
 
   useEffect(() => {
     if (completeDialogOpen && completeForm.completionAction === "MOVE_TO_SPRINT" && plannedSprints.length === 0) {

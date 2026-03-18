@@ -146,12 +146,15 @@ export function KanbanBoard({
   });
 
   useEffect(() => {
-    if (!selectedIssueId) return;
+    if (!selectedIssueId) {
+      if (selected) setSelected(null);
+      return;
+    }
     const match = issuesList.find((issue) => issue.id === selectedIssueId);
     if (match && selected?.id !== match.id) {
       setSelected(match);
     }
-  }, [issuesList, selected?.id, selectedIssueId]);
+  }, [issuesList, selected, selected?.id, selectedIssueId]);
 
   function onDragStart(e: DragStartEvent) {
     if (dndDisabled) return;
