@@ -12,6 +12,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { DatePickerField } from "@/components/ui/date-picker-field";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -22,8 +23,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import type { Issue } from "@/features/issues/api/issues.api";
-import { useIssuesQuery } from "@/features/issues/api/issues.queries";
+import type { BulkUpdateIssuesPayload, Issue, IssuePriority, IssueStatus } from "@/features/issues/api/issues.api";
+import { useBulkUpdateIssuesMutation, useIssuesQuery } from "@/features/issues/api/issues.queries";
 import { useI18n } from "@/features/i18n/i18n";
 import { useMyProjectRoleQuery, useProjectMembersQuery } from "@/features/project-members/api/project-members.queries";
 import type {
@@ -63,12 +64,23 @@ type CompleteSprintFormState = {
   targetSprintId: string;
 };
 
+type BulkEditState = {
+  status: IssueStatus | "";
+  priority: IssuePriority | "";
+  assigneeId: string;
+  sprintId: string;
+};
+
 function emptyForm(): SprintFormState {
   return { name: "", goal: "", description: "", startDate: "", endDate: "" };
 }
 
 function emptyCompleteForm(): CompleteSprintFormState {
   return { completionAction: "MOVE_TO_BACKLOG", targetSprintId: "" };
+}
+
+function emptyBulkEdit(): BulkEditState {
+  return { status: "", priority: "", assigneeId: "", sprintId: "" };
 }
 
 function normalizePayload(state: SprintFormState): SprintPayload {
@@ -117,8 +129,11 @@ function IssuePlanningList({
   canPlanIssues,
   assignPending,
   selectedIssueId,
+  selectedIssueIds,
   draggableIssues = false,
   onSelectIssue,
+  onToggleIssue,
+  onToggleAll,
   onAssign,
   onDragIssueStart,
   onDragIssueEnd,
@@ -129,18 +144,25 @@ function IssuePlanningList({
   canPlanIssues: boolean;
   assignPending: boolean;
   selectedIssueId?: string | null;
+  selectedIssueIds: string[];
   draggableIssues?: boolean;
   onSelectIssue: (issue: Issue | null) => void;
+  onToggleIssue: (issueId: string, checked: boolean) => void;
+  onToggleAll: (checked: boolean) => void;
   onAssign: (issueId: string, sprintId?: string | null) => void;
   onDragIssueStart?: (issueId: string) => void;
   onDragIssueEnd?: () => void;
 }) {
   const { t } = useI18n();
+  const allSelected = issues.length > 0 && issues.every((issue) => selectedIssueIds.includes(issue.id));
 
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-3">
-        <h3 className="text-sm font-medium text-foreground">{title}</h3>
+        <div className="flex items-center gap-3">
+          <Checkbox checked={allSelected} onCheckedChange={(checked) => onToggleAll(!!checked)} />
+          <h3 className="text-sm font-medium text-foreground">{title}</h3>
+        </div>
         <Badge variant="secondary">{issues.length}</Badge>
       </div>
 
@@ -163,23 +185,30 @@ function IssuePlanningList({
               )}
             >
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                <button type="button" className="min-w-0 flex-1 text-left" onClick={() => onSelectIssue(issue)}>
-                  <div className="flex min-w-0 flex-wrap items-center gap-2">
-                    <IssueTypeBadge type={issue.type} />
-                    <span className="truncate font-medium text-foreground">{issue.title}</span>
-                    {issue.sprintName ? (
-                      <Badge variant="outline" className="shrink-0">
-                        {issue.sprintName}
-                      </Badge>
-                    ) : null}
-                  </div>
-                  <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                    <StatusPill status={issue.status} />
-                    <PriorityBadge priority={issue.priority} />
-                    {issue.assigneeUsername ? <span>@{issue.assigneeUsername}</span> : <span>{t("board.unassigned")}</span>}
-                    {issue.dueDate ? <span>{t("board.dueShort", { date: issue.dueDate })}</span> : null}
-                  </div>
-                </button>
+                <div className="flex min-w-0 flex-1 items-start gap-3">
+                  <Checkbox
+                    checked={selectedIssueIds.includes(issue.id)}
+                    onCheckedChange={(checked) => onToggleIssue(issue.id, !!checked)}
+                    className="mt-1"
+                  />
+                  <button type="button" className="min-w-0 flex-1 text-left" onClick={() => onSelectIssue(issue)}>
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                      <IssueTypeBadge type={issue.type} />
+                      <span className="truncate font-medium text-foreground">{issue.title}</span>
+                      {issue.sprintName ? (
+                        <Badge variant="outline" className="shrink-0">
+                          {issue.sprintName}
+                        </Badge>
+                      ) : null}
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                      <StatusPill status={issue.status} />
+                      <PriorityBadge priority={issue.priority} />
+                      {issue.assigneeUsername ? <span>@{issue.assigneeUsername}</span> : <span>{t("board.unassigned")}</span>}
+                      {issue.dueDate ? <span>{t("board.dueShort", { date: issue.dueDate })}</span> : null}
+                    </div>
+                  </button>
+                </div>
 
                 <div className="w-full lg:w-[240px]">
                   <Select
@@ -488,6 +517,136 @@ function SprintMetricsCard({
   );
 }
 
+function BulkIssueActionBar({
+  selectedCount,
+  members,
+  sprintOptions,
+  canPlanIssues,
+  pending,
+  state,
+  onChange,
+  onApply,
+  onClearSelection,
+}: {
+  selectedCount: number;
+  members: Array<{ userId: string; username: string }>;
+  sprintOptions: Sprint[];
+  canPlanIssues: boolean;
+  pending: boolean;
+  state: BulkEditState;
+  onChange: (next: BulkEditState) => void;
+  onApply: () => void;
+  onClearSelection: () => void;
+}) {
+  const { t } = useI18n();
+
+  return (
+    <Card className="border-primary/30 bg-primary/[0.04] shadow-sm">
+      <CardContent className="flex flex-col gap-4 p-4">
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <div className="text-sm font-semibold text-foreground">{t("backlog.bulkEditTitle", { count: selectedCount })}</div>
+            <div className="text-sm text-muted-foreground">{t("backlog.bulkEditHint")}</div>
+          </div>
+          <Button variant="ghost" size="sm" onClick={onClearSelection}>
+            {t("backlog.clearSelection")}
+          </Button>
+        </div>
+
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="space-y-2">
+            <Label>{t("backlog.bulkStatus")}</Label>
+            <Select
+              value={state.status || "__unchanged__"}
+              onValueChange={(value) =>
+                onChange({ ...state, status: value === "__unchanged__" ? "" : (value as IssueStatus) })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder={t("backlog.leaveUnchanged")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__unchanged__">{t("backlog.leaveUnchanged")}</SelectItem>
+                <SelectItem value="TODO">{t("board.todo")}</SelectItem>
+                <SelectItem value="IN_PROGRESS">{t("board.inProgress")}</SelectItem>
+                <SelectItem value="DONE">{t("board.done")}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>{t("backlog.bulkPriority")}</Label>
+            <Select
+              value={state.priority || "__unchanged__"}
+              onValueChange={(value) =>
+                onChange({ ...state, priority: value === "__unchanged__" ? "" : (value as IssuePriority) })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder={t("backlog.leaveUnchanged")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__unchanged__">{t("backlog.leaveUnchanged")}</SelectItem>
+                <SelectItem value="LOW">LOW</SelectItem>
+                <SelectItem value="MEDIUM">MEDIUM</SelectItem>
+                <SelectItem value="HIGH">HIGH</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>{t("board.assignee")}</Label>
+            <Select
+              value={state.assigneeId || "__unchanged__"}
+              onValueChange={(value) => onChange({ ...state, assigneeId: value === "__unchanged__" ? "" : value })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder={t("backlog.leaveUnchanged")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__unchanged__">{t("backlog.leaveUnchanged")}</SelectItem>
+                <SelectItem value="__clear__">{t("backlog.clearAssignee")}</SelectItem>
+                {members.map((member) => (
+                  <SelectItem key={member.userId} value={member.userId}>
+                    @{member.username}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label>{t("backlog.bulkSprint")}</Label>
+            <Select
+              value={state.sprintId || "__unchanged__"}
+              onValueChange={(value) => onChange({ ...state, sprintId: value === "__unchanged__" ? "" : value })}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder={t("backlog.leaveUnchanged")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__unchanged__">{t("backlog.leaveUnchanged")}</SelectItem>
+                <SelectItem value="__clear__">{t("backlog.backlog")}</SelectItem>
+                {sprintOptions.map((sprint) => (
+                  <SelectItem key={sprint.id} value={sprint.id}>
+                    {sprint.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="flex justify-end">
+          <Button onClick={onApply} disabled={!canPlanIssues || pending}>
+            {pending ? t("common.saving") : t("backlog.applyBulkChanges")}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function ProjectBacklogPanel({
   projectId,
   onCreateIssue,
@@ -510,6 +669,7 @@ export function ProjectBacklogPanel({
   const startSprintMut = useStartSprintMutation(projectId);
   const completeSprintMut = useCompleteSprintMutation(projectId);
   const assignIssueMut = useAssignIssueToSprintMutation(projectId);
+  const bulkUpdateIssuesMut = useBulkUpdateIssuesMutation(projectId);
 
   const sprints = sprintsQ.data ?? [];
   const activeSprint = sprints.find((s) => s.status === "ACTIVE") ?? null;
@@ -530,7 +690,9 @@ export function ProjectBacklogPanel({
   const [editingSprint, setEditingSprint] = useState<Sprint | null>(null);
   const [form, setForm] = useState<SprintFormState>(emptyForm());
   const [completeForm, setCompleteForm] = useState<CompleteSprintFormState>(emptyCompleteForm());
+  const [bulkEdit, setBulkEdit] = useState<BulkEditState>(emptyBulkEdit());
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
+  const [selectedIssueIds, setSelectedIssueIds] = useState<string[]>([]);
   const [draggingIssueId, setDraggingIssueId] = useState<string | null>(null);
   const [dragOverSprintId, setDragOverSprintId] = useState<string | null>(null);
 
@@ -540,6 +702,10 @@ export function ProjectBacklogPanel({
     for (const issue of activeIssuesQ.data ?? []) map.set(issue.id, issue);
     return Array.from(map.values());
   }, [activeIssuesQ.data, backlogQ.data]);
+
+  useEffect(() => {
+    setSelectedIssueIds((current) => current.filter((issueId) => visibleIssues.some((issue) => issue.id === issueId)));
+  }, [visibleIssues]);
 
   useEffect(() => {
     if (!selectedIssueId) return;
@@ -617,6 +783,60 @@ export function ProjectBacklogPanel({
     }
   }
 
+  function toggleIssueSelection(issueId: string, checked: boolean) {
+    setSelectedIssueIds((current) =>
+      checked ? Array.from(new Set([...current, issueId])) : current.filter((item) => item !== issueId)
+    );
+  }
+
+  function toggleAllIssues(issues: Issue[], checked: boolean) {
+    setSelectedIssueIds((current) => {
+      const next = new Set(current);
+      for (const issue of issues) {
+        if (checked) next.add(issue.id);
+        else next.delete(issue.id);
+      }
+      return Array.from(next);
+    });
+  }
+
+  async function applyBulkChanges() {
+    if (selectedIssueIds.length === 0) return;
+
+    const payload: BulkUpdateIssuesPayload = { issueIds: selectedIssueIds };
+    if (bulkEdit.status) payload.status = bulkEdit.status;
+    if (bulkEdit.priority) payload.priority = bulkEdit.priority;
+    if (bulkEdit.assigneeId === "__clear__") payload.clearAssignee = true;
+    else if (bulkEdit.assigneeId) payload.assigneeId = bulkEdit.assigneeId;
+    if (bulkEdit.sprintId === "__clear__") payload.clearSprint = true;
+    else if (bulkEdit.sprintId) payload.sprintId = bulkEdit.sprintId;
+
+    if (
+      !payload.status &&
+      !payload.priority &&
+      !payload.assigneeId &&
+      !payload.clearAssignee &&
+      !payload.sprintId &&
+      !payload.clearSprint
+    ) {
+      toast({ title: t("backlog.noBulkChangesSelected"), variant: "destructive" });
+      return;
+    }
+
+    try {
+      await bulkUpdateIssuesMut.mutateAsync(payload);
+      toast({ title: t("backlog.bulkUpdateSuccess", { count: selectedIssueIds.length }) });
+      setSelectedIssueIds([]);
+      setBulkEdit(emptyBulkEdit());
+    } catch (e: unknown) {
+      toast({
+        title: t("backlog.bulkUpdateFailed"),
+        description: e instanceof Error ? e.message : t("issue.unknownError"),
+        variant: "destructive",
+      });
+    }
+  }
+
   async function startSprint(sprintId: string) {
     try {
       await startSprintMut.mutateAsync(sprintId);
@@ -667,6 +887,23 @@ export function ProjectBacklogPanel({
 
   return (
     <div className="space-y-6">
+      {selectedIssueIds.length > 0 ? (
+        <BulkIssueActionBar
+          selectedCount={selectedIssueIds.length}
+          members={members}
+          sprintOptions={assignableSprints}
+          canPlanIssues={canPlanIssues}
+          pending={bulkUpdateIssuesMut.isPending}
+          state={bulkEdit}
+          onChange={setBulkEdit}
+          onApply={applyBulkChanges}
+          onClearSelection={() => {
+            setSelectedIssueIds([]);
+            setBulkEdit(emptyBulkEdit());
+          }}
+        />
+      ) : null}
+
       <Card className="overflow-hidden shadow-sm">
         <CardContent className="flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-2">
@@ -739,11 +976,14 @@ export function ProjectBacklogPanel({
                   canPlanIssues={canPlanIssues}
                   assignPending={assignIssueMut.isPending}
                   selectedIssueId={selectedIssueId}
+                  selectedIssueIds={selectedIssueIds}
                   draggableIssues
                   onSelectIssue={(issue) => {
                     setSelectedIssue(issue);
                     onSelectedIssueChange?.(issue?.id ?? null);
                   }}
+                  onToggleIssue={toggleIssueSelection}
+                  onToggleAll={(checked) => toggleAllIssues(backlogQ.data ?? [], checked)}
                   onAssign={changeIssueSprint}
                   onDragIssueStart={setDraggingIssueId}
                   onDragIssueEnd={() => {
@@ -819,10 +1059,13 @@ export function ProjectBacklogPanel({
                       canPlanIssues={canPlanIssues}
                       assignPending={assignIssueMut.isPending}
                       selectedIssueId={selectedIssueId}
+                      selectedIssueIds={selectedIssueIds}
                       onSelectIssue={(issue) => {
                         setSelectedIssue(issue);
                         onSelectedIssueChange?.(issue?.id ?? null);
                       }}
+                      onToggleIssue={toggleIssueSelection}
+                      onToggleAll={(checked) => toggleAllIssues(activeIssuesQ.data ?? [], checked)}
                       onAssign={changeIssueSprint}
                     />
                   </>

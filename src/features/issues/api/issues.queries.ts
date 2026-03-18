@@ -1,9 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  bulkUpdateIssues,
   createIssue,
   getIssues,
   moveIssue,
   updateIssue,
+  type BulkUpdateIssuesPayload,
   type IssueListParams,
   type IssueStatus,
   type CreateIssuePayload,
@@ -51,6 +53,16 @@ export function useMoveIssueMutation(projectId: string) {
   return useMutation({
     mutationFn: ({ issueId, status }: { issueId: string; status: IssueStatus }) =>
       moveIssue(projectId, issueId, { status }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: issueKeys.project(projectId) });
+    },
+  });
+}
+
+export function useBulkUpdateIssuesMutation(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: BulkUpdateIssuesPayload) => bulkUpdateIssues(projectId, payload),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: issueKeys.project(projectId) });
     },

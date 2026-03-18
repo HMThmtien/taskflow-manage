@@ -103,3 +103,22 @@ export function moveIssue(projectId: string, issueId: string, payload: { status:
     body: JSON.stringify(payload),
   });
 }
+
+export type BulkUpdateIssuesPayload = {
+  issueIds: string[];
+  status?: IssueStatus;
+  priority?: IssuePriority;
+  assigneeId?: string;
+  clearAssignee?: boolean;
+  sprintId?: string;
+  clearSprint?: boolean;
+  dueDate?: string;
+  labels?: string[];
+};
+
+export function bulkUpdateIssues(projectId: string, payload: BulkUpdateIssuesPayload) {
+  return authFetchJson<Issue[]>(`/api/projects/${projectId}/issues/bulk`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}

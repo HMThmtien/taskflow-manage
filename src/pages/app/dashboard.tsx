@@ -8,21 +8,30 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProjectsQuery } from "@/features/projects/api/projects.queries";
 import {
+  useCreateReportViewMutation,
+  useDeleteReportViewMutation,
+  useReportViewsQuery,
+} from "@/features/report-views/api/report-views.queries";
+import {
   useProjectSprintProgressReportQuery,
   useProjectSummaryReportQuery,
   useProjectWorkloadReportQuery,
 } from "@/features/reports/api/reports.queries";
 import { ProjectOverviewCard } from "@/widgets/project/project-overview-card";
+import { ReportViewToolbar } from "@/widgets/reports/report-view-toolbar";
 
 export default function DashboardPage() {
   const projectsQ = useProjectsQuery();
+  const reportViewsQ = useReportViewsQuery("dashboard");
+  const createReportViewMut = useCreateReportViewMutation("dashboard");
+  const deleteReportViewMut = useDeleteReportViewMutation("dashboard");
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
 
   useEffect(() => {
     if (!selectedProjectId && projectsQ.data?.length) {
-      setSelectedProjectId(projectsQ.data[0].id);
+      setSelectedProjectId(reportViewsQ.data?.find((view) => view.isDefault)?.projectId ?? projectsQ.data[0].id);
     }
-  }, [projectsQ.data, selectedProjectId]);
+  }, [projectsQ.data, reportViewsQ.data, selectedProjectId]);
 
   const selectedProject = useMemo(
     () => projectsQ.data?.find((project) => project.id === selectedProjectId) ?? null,
@@ -55,6 +64,26 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      <ReportViewToolbar
+        title="Saved views"
+        description="Jump between common project presets for dashboard monitoring."
+        views={reportViewsQ.data ?? []}
+        projects={projectsQ.data}
+        selectedProjectId={selectedProjectId}
+        saving={createReportViewMut.isPending}
+        deletingId={deleteReportViewMut.variables ?? null}
+        onSelectProjectId={setSelectedProjectId}
+        onCreateView={({ name, isDefault }) =>
+          createReportViewMut.mutate({
+            routeKey: "dashboard",
+            name,
+            projectId: selectedProjectId,
+            isDefault,
+          })
+        }
+        onDeleteView={(reportViewId) => deleteReportViewMut.mutate(reportViewId)}
+      />
+
       <Card className="shadow-sm">
         <CardContent className="flex flex-col gap-4 p-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-1">
