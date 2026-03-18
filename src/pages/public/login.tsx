@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ const cardVariants = {
 
 export default function LoginPage() {
   const nav = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
 
   const login = useAuthStore((s) => s.login);
@@ -76,7 +77,9 @@ const onSubmit = async (e?: React.FormEvent) => {
       toast({ title: "Signed in", description: "Đăng nhập thành công." });
     }
 
-    nav("/app/dashboard", { replace: true });
+    const params = new URLSearchParams(location.search);
+    const from = typeof location.state?.from === "string" ? location.state.from : params.get("from");
+    nav(from || "/app/dashboard", { replace: true });
   } catch (e: any) {
     toast({
       title: "Error",

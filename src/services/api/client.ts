@@ -1,3 +1,5 @@
+import { toast } from "@/hooks/use-toast";
+
 type Tokens = {
   accessToken: string;
   refreshToken: string;
@@ -6,6 +8,8 @@ type Tokens = {
 };
 
 const TOKENS_KEY = "taskflow_tokens";
+const SESSION_EXPIRED_REDIRECT_DELAY_MS = 1200;
+let sessionExpiryRedirectScheduled = false;
 
 function getTokens(): Tokens | null {
   const raw = localStorage.getItem(TOKENS_KEY);
@@ -16,11 +20,42 @@ function setTokens(tokens: Tokens) {
   localStorage.setItem(TOKENS_KEY, JSON.stringify(tokens));
 }
 
+function clearTokens() {
+  localStorage.removeItem(TOKENS_KEY);
+}
+
+function redirectToLogin() {
+  if (typeof window === "undefined") return;
+  if (sessionExpiryRedirectScheduled || window.location.pathname.startsWith("/login")) return;
+
+  const currentPath = `${window.location.pathname}${window.location.search}`;
+  const loginUrl = `/login?expired=1&from=${encodeURIComponent(currentPath)}`;
+  sessionExpiryRedirectScheduled = true;
+
+  toast({
+    title: "Phiên đăng nhập đã hết hạn",
+    description: "Vui lòng đăng nhập lại để tiếp tục.",
+    variant: "destructive",
+  });
+
+  window.setTimeout(() => {
+    window.location.replace(loginUrl);
+  }, SESSION_EXPIRED_REDIRECT_DELAY_MS);
+}
+
+function expireSessionAndRedirect(): never {
+  clearTokens();
+  redirectToLogin();
+  throw new Error("Session expired");
+}
+
 let refreshInFlight: Promise<Tokens> | null = null;
 
 async function refreshTokens(): Promise<Tokens> {
   const tokens = getTokens();
-  if (!tokens?.refreshToken) throw new Error("No refresh token");
+  if (!tokens?.refreshToken) {
+    expireSessionAndRedirect();
+  }
 
   const res = await fetch(
     `/api/auth/refresh?refreshToken=${encodeURIComponent(tokens.refreshToken)}`,
@@ -29,7 +64,9 @@ async function refreshTokens(): Promise<Tokens> {
     }
   );
 
-  if (!res.ok) throw new Error("Refresh failed");
+  if (!res.ok) {
+    expireSessionAndRedirect();
+  }
 
   const raw = await res.text();
   const data = raw ? JSON.parse(raw) : null;
@@ -98,14 +135,22 @@ export async function authFetchJson<T>(input: RequestInfo, init?: RequestInit): 
   let res = await doFetch();
 
   if (res.status === 401) {
-    if (!refreshInFlight) {
-      refreshInFlight = refreshTokens().finally(() => {
-        refreshInFlight = null;
-      });
-    }
+    try {
+      if (!refreshInFlight) {
+        refreshInFlight = refreshTokens().finally(() => {
+          refreshInFlight = null;
+        });
+      }
 
-    await refreshInFlight;
+      await refreshInFlight;
+    } catch {
+      expireSessionAndRedirect();
+    }
     res = await doFetch();
+  }
+
+  if (res.status === 401) {
+    expireSessionAndRedirect();
   }
 
   if (!res.ok) {
@@ -151,14 +196,22 @@ export function openAuthEventStream(
       let res = await doFetch();
 
       if (res.status === 401) {
-        if (!refreshInFlight) {
-          refreshInFlight = refreshTokens().finally(() => {
-            refreshInFlight = null;
-          });
-        }
+        try {
+          if (!refreshInFlight) {
+            refreshInFlight = refreshTokens().finally(() => {
+              refreshInFlight = null;
+            });
+          }
 
-        await refreshInFlight;
+          await refreshInFlight;
+        } catch {
+          expireSessionAndRedirect();
+        }
         res = await doFetch();
+      }
+
+      if (res.status === 401) {
+        expireSessionAndRedirect();
       }
 
       if (!res.ok || !res.body) {
