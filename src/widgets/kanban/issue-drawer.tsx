@@ -91,7 +91,7 @@ function ActivityCard({
       : [];
 
   return (
-    <div className="rounded-lg border bg-card/60 p-3">
+    <div className="rounded-lg border bg-card/60 p-3 dark:border-white/10 dark:bg-white/[0.04]">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="text-sm">
@@ -110,7 +110,7 @@ function ActivityCard({
       {changes.length > 0 ? (
         <div className="mt-3 space-y-2">
           {changes.map((change, index) => (
-            <div key={index} className="rounded-md border bg-background/60 px-3 py-2 text-sm">
+            <div key={index} className="rounded-md border bg-background/60 px-3 py-2 text-sm dark:border-white/10 dark:bg-white/[0.04]">
               <div className="mb-1 text-xs text-muted-foreground">{prettyField(t, change.field)}</div>
               <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="secondary" className="font-normal">
@@ -125,7 +125,7 @@ function ActivityCard({
           ))}
         </div>
       ) : payload && Object.keys(payload).length > 0 ? (
-        <pre className="mt-3 overflow-auto rounded-md border bg-muted/60 p-3 text-xs">
+        <pre className="mt-3 overflow-auto rounded-md border bg-muted/60 p-3 text-xs dark:border-white/10 dark:bg-white/[0.04]">
           {JSON.stringify(payload, null, 2)}
         </pre>
       ) : null}
@@ -224,15 +224,16 @@ export function IssueDrawer({
         onOpenChange(value);
       }}
     >
-      <SheetContent className="w-[420px] p-0 sm:w-[620px]">
+      <SheetContent className="w-[420px] overflow-hidden border-l-white/60 bg-[linear-gradient(180deg,hsl(0_0%_100%/0.98),hsl(36_42%_98%/0.96))] p-0 shadow-[0_24px_80px_-32px_hsl(158_84%_18%/0.45)] dark:border-l-white/10 dark:bg-[linear-gradient(180deg,hsl(222_24%_14%/0.98),hsl(218_24%_10%/0.96))] dark:shadow-[0_28px_70px_-30px_hsl(0_0%_0%/0.72)] sm:w-[620px]">
         <div className="flex h-full flex-col">
-          <div className="p-6 pb-4">
+          <div className="border-b border-border/50 bg-[radial-gradient(circle_at_top_right,_hsl(var(--primary)/0.12),_transparent_34%),linear-gradient(180deg,hsl(var(--background)/0.96),hsl(var(--background)/0.84))] p-6 pb-4 dark:border-white/10 dark:bg-[radial-gradient(circle_at_top_right,_hsl(var(--primary)/0.18),_transparent_34%),linear-gradient(180deg,hsl(222_22%_16%/0.96),hsl(218_22%_12%/0.88))]">
             <SheetHeader>
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <SheetTitle className="truncate">{t("issue.title")}</SheetTitle>
+                  <div className="section-caption mb-2">{t("issue.details")}</div>
+                  <SheetTitle className="truncate text-2xl tracking-tight">{t("issue.title")}</SheetTitle>
                   {issue ? (
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
                       <IssueTypeBadge type={issue.type} />
                       <StatusPill status={status} />
                       <PriorityBadge priority={priority} />
@@ -253,7 +254,7 @@ export function IssueDrawer({
           ) : (
             <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-24">
               <Tabs value={tab} onValueChange={(value) => setTab(value as DrawerTab)}>
-                <TabsList className="grid w-full grid-cols-5">
+                <TabsList className="grid h-auto w-full grid-cols-5 rounded-2xl border border-border/60 bg-background/75 p-1.5 shadow-inner dark:border-white/10 dark:bg-white/[0.04]">
                   <TabsTrigger value="details">{t("issue.details")}</TabsTrigger>
                   <TabsTrigger value="comments">{t("issue.comments")}</TabsTrigger>
                   <TabsTrigger value="activity">{t("issue.activity")}</TabsTrigger>
@@ -390,7 +391,7 @@ export function IssueDrawer({
                     {commentsQ.isLoading ? (
                       <div className="space-y-3">
                         {Array.from({ length: 3 }).map((_, i) => (
-                          <div key={i} className="rounded-lg border p-3">
+                          <div key={i} className="rounded-lg border p-3 dark:border-white/10 dark:bg-white/[0.03]">
                             <div className="flex items-center justify-between">
                               <Skeleton className="h-4 w-24" />
                               <Skeleton className="h-3 w-28" />
@@ -407,7 +408,7 @@ export function IssueDrawer({
                     ) : (
                       <div className="space-y-3">
                         {commentsQ.data!.map((comment: any) => (
-                          <div key={comment.id} className="rounded-lg border p-3">
+                          <div key={comment.id} className="rounded-lg border p-3 dark:border-white/10 dark:bg-white/[0.03]">
                             <div className="flex items-center justify-between">
                               <div className="text-sm font-medium">{comment.authorUsername}</div>
                               <div className="text-xs text-muted-foreground">{new Date(comment.createdAt).toLocaleString()}</div>
@@ -434,7 +435,7 @@ export function IssueDrawer({
                     {activitiesQ.isLoading ? (
                       <div className="space-y-3">
                         {Array.from({ length: 4 }).map((_, i) => (
-                          <div key={i} className="rounded-lg border p-3">
+                          <div key={i} className="rounded-lg border p-3 dark:border-white/10 dark:bg-white/[0.03]">
                             <div className="flex items-center justify-between">
                               <Skeleton className="h-4 w-40" />
                               <Skeleton className="h-4 w-16" />
@@ -534,7 +535,7 @@ export function IssueDrawer({
           )}
 
           {issue ? (
-            <div className="absolute bottom-0 left-0 right-0 border-t bg-background/80 p-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+            <div className="absolute bottom-0 left-0 right-0 border-t border-border/60 bg-[linear-gradient(180deg,hsl(var(--background)/0.84),hsl(var(--background)/0.98))] p-4 backdrop-blur supports-[backdrop-filter]:bg-background/75 dark:border-white/10 dark:bg-[linear-gradient(180deg,hsl(222_20%_15%/0.76),hsl(218_22%_11%/0.96))] dark:supports-[backdrop-filter]:bg-[linear-gradient(180deg,hsl(222_20%_15%/0.66),hsl(218_22%_11%/0.88))]">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   {tab === "details" ? (

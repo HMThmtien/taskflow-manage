@@ -13,6 +13,19 @@ function unwrap<T>(res: ApiResponse<T> | T): T {
   return res as T;
 }
 
+function normalizeNotificationsResponse(response: NotificationsResponse): NotificationsResponse {
+  return {
+    ...response,
+    items: (response.items ?? []).map((item) => {
+      const normalized = item as typeof item & { read?: boolean };
+      return {
+        ...item,
+        isRead: typeof normalized.isRead === "boolean" ? normalized.isRead : !!normalized.read,
+      };
+    }),
+  };
+}
+
 export async function getNotifications(params?: {
   unreadOnly?: boolean;
   page?: number;
@@ -31,7 +44,7 @@ export async function getNotifications(params?: {
     ApiResponse<NotificationsResponse> | NotificationsResponse
   >(`/api/notifications?${search.toString()}`);
 
-  return unwrap(res);
+  return normalizeNotificationsResponse(unwrap(res));
 }
 
 export async function markNotificationAsRead(id: string) {

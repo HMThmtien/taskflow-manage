@@ -62,8 +62,10 @@ export function IssueCard({
     <Card
       ref={setNodeRef}
       style={style}
+      {...listeners}
+      {...attributes}
       className={cn(
-        "group relative block w-full max-w-full shrink-0 box-border p-3 transition-colors hover:bg-accent/40",
+        "group relative block w-full max-w-full shrink-0 box-border cursor-grab overflow-hidden rounded-2xl border-white/70 bg-[linear-gradient(180deg,hsl(0_0%_100%/0.96),hsl(36_50%_98%/0.88))] p-3.5 shadow-[0_14px_28px_-26px_hsl(158_84%_18%/0.45)] transition-[box-shadow,border-color,background-color,opacity] duration-150 hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-[0_22px_40px_-28px_hsl(158_84%_18%/0.4)] hover:bg-accent/30 active:cursor-grabbing dark:border-white/10 dark:bg-[linear-gradient(180deg,hsl(222_22%_17%/0.96),hsl(218_22%_13%/0.94))] dark:shadow-[0_22px_36px_-30px_hsl(0_0%_0%/0.6)] dark:hover:border-primary/30 dark:hover:bg-white/[0.04] dark:hover:shadow-[0_24px_44px_-28px_hsl(0_0%_0%/0.7)] will-change-transform",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
         isDragging && "opacity-0"
       )}
@@ -72,26 +74,20 @@ export function IssueCard({
       tabIndex={0}
     >
       <div className="flex items-start gap-2">
-        <button
-          type="button"
-          className="mt-0.5 cursor-grab text-muted-foreground hover:text-foreground active:cursor-grabbing"
-          onClick={(e) => e.stopPropagation()}
-          {...listeners}
-          {...attributes}
-        >
+        <div className="mt-0.5 text-muted-foreground transition-colors group-hover:text-foreground">
           <GripVertical className="h-4 w-4" />
-        </button>
+        </div>
 
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <div className="flex min-w-0 flex-wrap items-center gap-2">
-                <span className="shrink-0 rounded border px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">
+                <span className="shrink-0 rounded-full border border-border/70 bg-background/80 px-2 py-0.5 text-[11px] font-semibold text-muted-foreground dark:border-white/10 dark:bg-white/[0.05]">
                   {key}
                 </span>
 
                 <IssueTypeBadge type={issue.type} />
-                <div className="truncate text-sm font-medium">{issue.title}</div>
+                <div className="truncate text-sm font-semibold tracking-tight text-foreground">{issue.title}</div>
               </div>
 
               {isSubtask && issue.parentIssueTitle ? (
@@ -120,7 +116,7 @@ export function IssueCard({
             <PriorityBadge priority={issue.priority} />
 
             {assigneeName ? (
-              <span className="inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-border/70 bg-background/75 px-2 py-0.5 text-xs dark:border-white/10 dark:bg-white/[0.05]">
                 <Avatar className="h-4 w-4">
                   <AvatarFallback className="text-[9px]">{initials(assigneeName)}</AvatarFallback>
                 </Avatar>
@@ -129,7 +125,7 @@ export function IssueCard({
             ) : null}
 
             {due ? (
-              <span className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs text-muted-foreground">
+              <span className="inline-flex items-center gap-1 rounded-full border border-border/70 bg-background/75 px-2 py-0.5 text-xs text-muted-foreground dark:border-white/10 dark:bg-white/[0.05]">
                 <Calendar className="h-3 w-3" />
                 {due}
               </span>
@@ -143,7 +139,7 @@ export function IssueCard({
                 {t("board.labels")}
               </span>
               {displayLabels.map((label) => (
-                <Badge key={label} variant="outline" className="px-2 py-0.5 text-[11px]">
+                <Badge key={label} variant="outline" className="bg-background/70 px-2 py-0.5 text-[11px] dark:border-white/10 dark:bg-white/[0.05]">
                   {label}
                 </Badge>
               ))}
@@ -155,11 +151,11 @@ export function IssueCard({
             </div>
           ) : null}
 
-          <div className="mt-2 line-clamp-2 text-xs text-muted-foreground">
+          <div className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">
             {issue.description?.trim() ? issue.description : t("common.noDescription")}
           </div>
 
-          <div className="mt-3 flex items-center gap-3 text-[11px] text-muted-foreground">
+          <div className="mt-3 flex items-center gap-3 border-t border-border/40 pt-3 text-[11px] text-muted-foreground dark:border-white/10">
             {isSubtask ? (
               <span className="inline-flex items-center gap-1">
                 <GitBranch className="h-3 w-3" />

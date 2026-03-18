@@ -147,7 +147,7 @@ export default function ProjectDetailPage() {
   if (!project) return null;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-6">
       <ProjectHeader
         project={project}
         onNewIssue={() => {
@@ -165,25 +165,28 @@ export default function ProjectDetailPage() {
       ) : null}
 
       <Tabs value={tab} onValueChange={(v) => setTabAndUrl(v as TabKey)} className="w-full">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <TabsList>
+        <div className="surface-panel flex flex-col gap-4 rounded-[24px] border border-white/70 p-4 sm:flex-row sm:items-center sm:justify-between dark:border-white/10 dark:bg-[linear-gradient(180deg,hsl(222_24%_16%/0.9),hsl(218_22%_13%/0.82))] dark:shadow-[0_22px_44px_-28px_hsl(0_0%_0%/0.55)]">
+          <div>
+            <div className="section-caption mb-2">Workspace View</div>
+            <TabsList className="h-auto rounded-2xl border border-border/70 bg-background/70 p-1.5 shadow-inner dark:border-white/10 dark:bg-white/5">
             <TabsTrigger value="board">{t("project.tabs.board")}</TabsTrigger>
             <TabsTrigger value="backlog">{t("project.tabs.backlog")}</TabsTrigger>
             <TabsTrigger value="members">{t("project.tabs.members")}</TabsTrigger>
             <TabsTrigger value="settings">{t("project.tabs.settings")}</TabsTrigger>
           </TabsList>
+          </div>
 
           <div className="flex items-center gap-2">
             {tab === "board" || tab === "backlog" ? (
               <>
                 {tab === "board" ? (
-                  <div className="hidden md:flex items-center gap-2 text-xs text-muted-foreground mr-2">
+                  <div className="mr-2 hidden items-center gap-2 rounded-full border bg-background/70 px-3 py-1.5 text-xs text-muted-foreground dark:border-white/10 dark:bg-white/5 md:flex">
                     <Keyboard className="h-4 w-4" />
                     <span>{t("project.shortcuts.label")}</span>
                   </div>
                 ) : null}
 
-                <Button onClick={() => setOpenCreate(true)} className="whitespace-nowrap">
+                <Button onClick={() => setOpenCreate(true)} className="whitespace-nowrap rounded-full px-5 shadow-sm shadow-primary/20 dark:shadow-primary/10">
                   {t("common.newIssue")}
                 </Button>
               </>
@@ -202,7 +205,7 @@ export default function ProjectDetailPage() {
         </TabsContent>
 
         <TabsContent value="members" className="mt-6">
-          <Card className="shadow-sm">
+          <Card className="surface-panel rounded-[24px] border-white/70 shadow-sm dark:border-white/10 dark:bg-[linear-gradient(180deg,hsl(222_24%_16%/0.92),hsl(218_22%_13%/0.84))] dark:shadow-[0_22px_44px_-28px_hsl(0_0%_0%/0.55)]">
             <CardContent className="p-4">
               <ProjectMembersPanel projectId={projectId} />
             </CardContent>

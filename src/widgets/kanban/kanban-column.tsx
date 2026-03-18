@@ -1,5 +1,4 @@
 import { useDroppable } from "@dnd-kit/core";
-import { AnimatePresence, motion } from "framer-motion";
 import { ChevronDown, ChevronUp, Inbox, Minus, MoreHorizontal, SortAsc } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -51,20 +50,23 @@ export function KanbanColumn({
   return (
     <div
       ref={setNodeRef}
-      className={cn("rounded-xl bg-muted/20 transition-colors", isOver && "bg-primary/5 ring-2 ring-primary/40")}
+      className={cn(
+        "rounded-[26px] border border-white/60 bg-white/30 p-1.5 transition-colors dark:border-white/10 dark:bg-white/[0.03]",
+        isOver && "bg-primary/10 ring-2 ring-primary/30 dark:bg-primary/12"
+      )}
     >
-      <Card className="border-muted-foreground/10 bg-card/50 shadow-sm">
-        <CardHeader className="sticky top-0 z-10 rounded-t-lg bg-card/60 pb-3 backdrop-blur supports-[backdrop-filter]:bg-card/40">
+      <Card className="surface-panel-dark overflow-hidden rounded-[22px] border-border/50 bg-card/70 shadow-sm dark:border-white/10 dark:bg-[linear-gradient(180deg,hsl(222_24%_14%/0.96),hsl(218_24%_11%/0.92))] dark:shadow-[0_24px_40px_-30px_hsl(0_0%_0%/0.55)]">
+        <CardHeader className="sticky top-0 z-10 border-b border-border/40 bg-[linear-gradient(180deg,hsl(var(--card)/0.96),hsl(var(--card)/0.86))] pb-3 backdrop-blur supports-[backdrop-filter]:bg-card/75 dark:border-white/10 dark:bg-[linear-gradient(180deg,hsl(222_22%_17%/0.94),hsl(218_22%_14%/0.84))] dark:supports-[backdrop-filter]:bg-[linear-gradient(180deg,hsl(222_22%_17%/0.82),hsl(218_22%_14%/0.72))]">
           <CardTitle className="flex items-center justify-between gap-2 text-sm font-medium">
             <div className="min-w-0 flex items-center gap-2">
-              <span className="truncate">{title}</span>
-              <Badge variant="secondary" className={cn("px-2 py-0.5", overLimit && "bg-destructive/10 text-destructive")}>
+              <span className="truncate text-[15px] font-semibold tracking-tight">{title}</span>
+              <Badge variant="secondary" className={cn("px-2 py-0.5 shadow-sm", overLimit && "bg-destructive/10 text-destructive")}>
                 {items.length}
               </Badge>
               {wipLimit != null ? (
                 <Badge
                   variant="outline"
-                  className={cn("px-2 py-0.5", overLimit && "border-destructive/40 text-destructive")}
+                  className={cn("px-2 py-0.5 bg-background/70 dark:bg-white/5", overLimit && "border-destructive/40 text-destructive")}
                 >
                   {t("board.wip")} {wipLimit}
                 </Badge>
@@ -73,7 +75,7 @@ export function KanbanColumn({
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
+                <Button variant="ghost" size="icon" className="h-8 w-8 dark:hover:bg-white/8">
                   <MoreHorizontal className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
@@ -149,48 +151,39 @@ export function KanbanColumn({
 
         <CardContent
           className={cn(
-            "min-h-[440px] max-h-[520px] overflow-y-auto overflow-x-hidden p-2 [scrollbar-gutter:stable]",
+            "min-h-[460px] max-h-[560px] overflow-y-auto overflow-x-hidden bg-[linear-gradient(180deg,hsl(var(--muted)/0.08),transparent_24%)] p-3 [scrollbar-gutter:stable] dark:bg-[linear-gradient(180deg,hsl(220_20%_16%/0.42),transparent_24%)]",
             collapsed && "max-h-[120px] min-h-[84px]"
           )}
         >
           {collapsed ? (
-            <div className="flex h-[64px] items-center justify-center rounded-md border border-dashed text-muted-foreground">
+            <div className="flex h-[64px] items-center justify-center rounded-xl border border-dashed text-muted-foreground dark:border-white/10 dark:bg-white/[0.03]">
               <div className="text-xs">{t("board.collapsed")}</div>
             </div>
           ) : items.length === 0 ? (
-            <div className="flex h-[200px] items-center justify-center rounded-md border border-dashed text-muted-foreground">
+            <div className="flex h-[220px] items-center justify-center rounded-2xl border border-dashed bg-background/60 text-muted-foreground dark:border-white/10 dark:bg-white/[0.03]">
               <div className="flex flex-col items-center gap-2 text-center">
-                <Inbox className="h-5 w-5" />
-                <div className="text-sm font-medium">{t("board.noIssues")}</div>
-                <div className="text-xs">{t("board.dropIssueHere")}</div>
+                <Inbox className="h-5 w-5 text-primary/70" />
+                <div className="text-sm font-medium text-foreground">{t("board.noIssues")}</div>
+                <div className="max-w-[180px] text-xs">{t("board.dropIssueHere")}</div>
               </div>
             </div>
           ) : (
-            <motion.div layout className="space-y-2">
-              <AnimatePresence initial={false}>
-                {items.map((item) => (
-                  <motion.div
-                    key={item.id}
-                    layout
-                    initial={{ opacity: 0, y: 6 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -6 }}
-                    transition={{ duration: 0.14 }}
-                  >
-                    <IssueCard
-                      issue={item}
-                      onClick={() => onSelect(item)}
-                      projectKey={projectKey}
-                      assigneeName={
-                        item.assigneeUsername ??
-                        (item.assigneeId ? memberNameById?.get(item.assigneeId) : null) ??
-                        null
-                      }
-                    />
-                  </motion.div>
-                ))}
-              </AnimatePresence>
-            </motion.div>
+            <div className="space-y-2">
+              {items.map((item) => (
+                <div key={item.id}>
+                  <IssueCard
+                    issue={item}
+                    onClick={() => onSelect(item)}
+                    projectKey={projectKey}
+                    assigneeName={
+                      item.assigneeUsername ??
+                      (item.assigneeId ? memberNameById?.get(item.assigneeId) : null) ??
+                      null
+                    }
+                  />
+                </div>
+              ))}
+            </div>
           )}
         </CardContent>
       </Card>

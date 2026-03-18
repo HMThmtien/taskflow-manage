@@ -75,7 +75,7 @@ function SectionTitle({
   if (collapsed) return null;
 
   return (
-    <div className="px-3 pt-2 text-[11px] font-semibold tracking-wide text-muted-foreground">
+    <div className="px-3 pt-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-muted-foreground/90">
       {children}
     </div>
   );
@@ -99,9 +99,11 @@ function NavItemRow({
       to={item.to}
       className={({ isActive }) =>
         cn(
-          "group relative flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors",
-          "hover:bg-accent/60",
-          isActive ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+          "group relative flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm transition-all",
+          "hover:bg-white/55 dark:hover:bg-white/6",
+          isActive
+            ? "bg-[linear-gradient(135deg,hsl(var(--primary)/0.16),hsl(47_72%_92%/0.72))] text-foreground shadow-sm dark:bg-[linear-gradient(135deg,hsl(var(--primary)/0.24),hsl(200_70%_22%/0.24))]"
+            : "text-muted-foreground hover:text-foreground"
         )
       }
     >
@@ -173,20 +175,20 @@ export function Sidebar() {
         )}
       >
         <div className={cn("p-4", collapsed ? "pb-3" : "pb-4")}>
-          <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center justify-between gap-2 rounded-[22px] border border-white/60 bg-[linear-gradient(180deg,hsl(0_0%_100%/0.56),hsl(0_0%_100%/0.18))] p-3 shadow-[0_18px_30px_-28px_hsl(158_84%_18%/0.45)] dark:border-white/10 dark:bg-[linear-gradient(180deg,hsl(221_24%_20%/0.76),hsl(216_22%_15%/0.42))] dark:shadow-[0_18px_32px_-26px_hsl(0_0%_0%/0.55)]">
             <div
               className={cn(
                 "flex min-w-0 items-center gap-3",
                 collapsed && "w-full justify-center"
               )}
             >
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/12 ring-1 ring-primary/20">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,hsl(var(--primary)/0.22),hsl(45_88%_88%/0.72))] ring-1 ring-primary/20 dark:bg-[linear-gradient(135deg,hsl(var(--primary)/0.34),hsl(192_84%_30%/0.28))]">
                 <span className="text-sm font-semibold text-primary">TF</span>
               </div>
 
               {!collapsed ? (
                 <div className="min-w-0">
-                  <div className="text-base font-semibold leading-none">TaskFlow</div>
+                  <div className="text-base font-semibold leading-none tracking-tight">TaskFlow</div>
                   <div className="mt-1 text-xs text-muted-foreground">
                     {t("sidebar.subtitle")}
                   </div>
@@ -200,7 +202,7 @@ export function Sidebar() {
                   variant="ghost"
                   size="icon"
                   onClick={() => setCollapsed((value) => !value)}
-                  className="shrink-0"
+                  className="shrink-0 rounded-xl hover:bg-white/60 dark:hover:bg-white/8"
                 >
                   {collapsed ? (
                     <ChevronsRight className="h-4 w-4" />
@@ -254,7 +256,7 @@ export function Sidebar() {
             <DropdownMenuTrigger asChild>
               <button
                 className={cn(
-                  "flex w-full items-center gap-3 rounded-md px-2 py-2 transition-colors hover:bg-accent/60",
+                  "flex w-full items-center gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-white/55 dark:hover:bg-white/8",
                   collapsed && "w-auto px-2"
                 )}
               >

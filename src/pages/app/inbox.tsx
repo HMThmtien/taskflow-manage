@@ -39,10 +39,10 @@ export default function InboxPage() {
     return Array.from(map.entries()).map(([label, items]) => ({ label, items }));
   }, [query.data?.items]);
 
-  function openNotification(item: NotificationItem) {
+  async function openNotification(item: NotificationItem) {
     const route = getNotificationRoute(item);
     if (!item.isRead) {
-      markOne.mutate(item.id);
+      await markOne.mutateAsync(item.id);
     }
     if (route) {
       navigate(route);
@@ -95,14 +95,16 @@ export default function InboxPage() {
                   <div
                     key={item.id}
                     className={`rounded-lg border p-4 transition-colors ${
-                      item.isRead ? "hover:bg-accent/30" : "border-emerald-500 bg-emerald-500/5"
+                      item.isRead
+                        ? "border-border/70 bg-background/75"
+                        : "border-emerald-500/80 bg-emerald-500/5 hover:bg-emerald-500/10"
                     }`}
                   >
                     <div className="flex items-start justify-between gap-4">
                       <button
                         type="button"
                         className="flex-1 space-y-1 text-left"
-                        onClick={() => openNotification(item)}
+                        onClick={() => void openNotification(item)}
                       >
                         <div className="flex items-center gap-2">
                           <div className="font-medium">{item.title}</div>
@@ -118,13 +120,17 @@ export default function InboxPage() {
 
                       <div className="flex items-center gap-2">
                         {!item.isRead ? (
-                          <Button variant="outline" size="sm" onClick={() => markOne.mutate(String(item.id))}>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => markOne.mutate(String(item.id))}
+                          >
                             {t("inbox.markRead")}
                           </Button>
                         ) : null}
 
                         {route ? (
-                          <Button variant="ghost" size="icon" onClick={() => openNotification(item)}>
+                          <Button variant="ghost" size="icon" onClick={() => void openNotification(item)}>
                             <ArrowUpRight className="h-4 w-4" />
                           </Button>
                         ) : null}

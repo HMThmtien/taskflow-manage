@@ -74,7 +74,7 @@ export function KanbanBoard({
     return map;
   }, [members]);
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   const issuesList = useMemo(() => {
     const base = Array.isArray(data) ? data : [];
