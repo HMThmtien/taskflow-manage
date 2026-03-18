@@ -121,6 +121,11 @@ export async function fetchJson<T>(input: RequestInfo, init?: RequestInit): Prom
 }
 
 export async function authFetchJson<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
+  const res = await authFetchResponse(input, init);
+  return parseBody<T>(res);
+}
+
+export async function authFetchResponse(input: RequestInfo, init?: RequestInit): Promise<Response> {
   const doFetch = async () => {
     const tokens = getTokens();
     const headers = new Headers(buildHeaders(init));
@@ -162,7 +167,7 @@ export async function authFetchJson<T>(input: RequestInfo, init?: RequestInit): 
     throw new Error(message);
   }
 
-  return parseBody<T>(res);
+  return res;
 }
 
 export function openAuthEventStream(

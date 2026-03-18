@@ -1,6 +1,8 @@
 import { Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/features/i18n/i18n";
+import { downloadAttachmentBlob } from "@/features/issues/api/attachments.api";
+import { toast } from "@/hooks/use-toast";
 
 export type IssueAttachment = {
   id: string;
@@ -31,6 +33,31 @@ export function AttachmentList({
 }) {
   const { t } = useI18n();
 
+  const openAttachment = async (item: IssueAttachment) => {
+    const popup = window.open("", "_blank");
+
+    try {
+      const blob = await downloadAttachmentBlob(item.storagePath, baseUrl);
+      const objectUrl = URL.createObjectURL(blob);
+
+      if (popup) {
+        popup.location.href = objectUrl;
+        window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+        return;
+      }
+
+      window.open(objectUrl, "_blank");
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+    } catch (error) {
+      popup?.close();
+      toast({
+        title: t("issue.failedLoadAttachments"),
+        description: error instanceof Error ? error.message : "Request failed",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (!items.length) {
     return <div className="text-sm text-muted-foreground">{t("issue.noAttachmentsYet")}</div>;
   }
@@ -38,24 +65,19 @@ export function AttachmentList({
   return (
     <div className="space-y-2">
       {items.map((item) => {
-        const href = item.storagePath.startsWith("http")
-          ? item.storagePath
-          : `${baseUrl ?? ""}${item.storagePath}`;
-
         return (
           <div
             key={item.id}
             className="flex items-center justify-between gap-3 rounded-lg border p-3"
           >
             <div className="min-w-0">
-              <a
-                href={href}
-                target="_blank"
-                rel="noreferrer"
+              <button
+                type="button"
+                onClick={() => void openAttachment(item)}
                 className="break-all text-sm font-medium hover:underline"
               >
                 {item.fileName}
-              </a>
+              </button>
               <div className="mt-1 text-xs text-muted-foreground">
                 {t("issue.byLine", {
                   size: formatFileSize(item.fileSize),

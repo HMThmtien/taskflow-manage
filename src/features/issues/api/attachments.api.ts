@@ -1,4 +1,4 @@
-import { authFetchJson } from "@/services/api/client";
+import { authFetchJson, authFetchResponse } from "@/services/api/client";
 
 export type IssueAttachment = {
   id: string;
@@ -54,4 +54,28 @@ export async function deleteAttachment(issueId: string, attachmentId: string) {
   );
 
   return unwrap(res);
+}
+
+export async function resolveAttachmentDownloadUrl(storagePath: string, baseUrl?: string) {
+  const requestUrl = storagePath.startsWith("http")
+    ? storagePath
+    : `${baseUrl ?? ""}${storagePath}`;
+
+  const res = await authFetchResponse(requestUrl, {
+    method: "GET",
+  });
+
+  return res.url;
+}
+
+export async function downloadAttachmentBlob(storagePath: string, baseUrl?: string) {
+  const requestUrl = storagePath.startsWith("http")
+    ? storagePath
+    : `${baseUrl ?? ""}${storagePath}`;
+
+  const res = await authFetchResponse(requestUrl, {
+    method: "GET",
+  });
+
+  return res.blob();
 }
