@@ -182,8 +182,8 @@ export function Sidebar() {
                 collapsed && "w-full justify-center"
               )}
             >
-              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[linear-gradient(135deg,hsl(var(--primary)/0.22),hsl(45_88%_88%/0.72))] ring-1 ring-primary/20 dark:bg-[linear-gradient(135deg,hsl(var(--primary)/0.34),hsl(192_84%_30%/0.28))]">
-                <span className="text-sm font-semibold text-primary">TF</span>
+              <div className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-2xl ring-1 ring-primary/20">
+                <img src="/taskflow-mark.svg" alt="TaskFlow" className="h-10 w-10 object-cover" />
               </div>
 
               {!collapsed ? (
