@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Select,
   SelectContent,
@@ -25,6 +26,16 @@ function getInitialTheme(): Theme {
 
 function shortcutLabel() {
   return navigator.platform.toUpperCase().includes("MAC") ? "Cmd+K" : "Ctrl+K";
+}
+
+function getInitials(name?: string | null, username?: string) {
+  const source = name?.trim() || username || "U";
+  return source
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((segment) => segment[0]?.toUpperCase() ?? "")
+    .join("");
 }
 
 export function Topbar({ onOpenCommandPalette }: { onOpenCommandPalette?: () => void }) {
@@ -105,6 +116,16 @@ export function Topbar({ onOpenCommandPalette }: { onOpenCommandPalette?: () => 
         </Select>
 
         <span className="rounded-md bg-muted px-2 py-1 text-xs">{tokens?.role}</span>
+
+        <Avatar className="h-9 w-9 ring-1 ring-border/70">
+          <AvatarImage
+            src={profileQuery.data?.avatarUrl ?? undefined}
+            alt={profileQuery.data?.fullName ?? profileQuery.data?.username ?? tokens?.username ?? "User"}
+          />
+          <AvatarFallback className="text-xs">
+            {getInitials(profileQuery.data?.fullName, profileQuery.data?.username ?? tokens?.username)}
+          </AvatarFallback>
+        </Avatar>
 
         <Button
           variant="outline"

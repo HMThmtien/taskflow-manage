@@ -37,6 +37,32 @@ export async function updateMyProfile(payload: UpdateMyProfileInput) {
   return unwrap(res);
 }
 
+export async function uploadMyAvatar(file: File) {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const res = await authFetchJson<ApiResponse<UserProfile> | UserProfile>(
+    "/api/users/me/avatar",
+    {
+      method: "POST",
+      body: formData,
+    }
+  );
+
+  return unwrap(res);
+}
+
+export async function removeMyAvatar() {
+  const res = await authFetchJson<ApiResponse<UserProfile> | UserProfile>(
+    "/api/users/me/avatar",
+    {
+      method: "DELETE",
+    }
+  );
+
+  return unwrap(res);
+}
+
 export async function changeMyPassword(payload: ChangeMyPasswordInput) {
   const res = await authFetchJson<
     ApiResponse<{ message: string }> | { message: string }

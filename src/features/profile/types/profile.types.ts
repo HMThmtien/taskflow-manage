@@ -10,7 +10,7 @@ export type DefaultStartPage =
   | 'profile'
 
 export type UserProfile = {
-  id: number
+  id: string
   username: string
   email: string
   fullName: string | null

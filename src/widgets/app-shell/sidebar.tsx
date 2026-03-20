@@ -16,10 +16,11 @@ import {
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/auth.store";
 import { useNotificationsQuery } from "@/features/notifications/api/notifications.queries";
+import { useMyProfileQuery } from "@/features/profile/api/profile.queries";
 import { useI18n } from "@/features/i18n/i18n";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
@@ -143,11 +144,13 @@ function NavItemRow({
 }
 
 export function Sidebar() {
+  const accessToken = useAuthStore((s) => s.tokens?.accessToken);
   const role = useAuthStore((s) => s.tokens?.role);
   const username = useAuthStore((s) => s.tokens?.username);
   const logout = useAuthStore((s) => s.logout);
   const isAdmin = role === "ADMIN";
   const notificationsQ = useNotificationsQuery({ page: 1, pageSize: 1 });
+  const profileQuery = useMyProfileQuery(!!accessToken);
   const unreadCount = notificationsQ.data?.unreadCount ?? 0;
   const { t } = useI18n();
   const [collapsed, setCollapsed] = React.useState(getInitialCollapsed);
@@ -261,16 +264,20 @@ export function Sidebar() {
                 )}
               >
                 <Avatar className="h-9 w-9">
+                  <AvatarImage
+                    src={profileQuery.data?.avatarUrl ?? undefined}
+                    alt={profileQuery.data?.fullName ?? profileQuery.data?.username ?? username ?? "User"}
+                  />
                   <AvatarFallback className="text-xs">{initials || "U"}</AvatarFallback>
                 </Avatar>
 
                 {!collapsed ? (
                   <div className="min-w-0 flex-1 text-left">
                     <div className="truncate text-sm font-medium">
-                      {username ?? t("common.unknown")}
+                      {profileQuery.data?.fullName || username || t("common.unknown")}
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      {t("sidebar.role", { role: role ?? "-" })}
+                      @{profileQuery.data?.username ?? username ?? "-"}
                     </div>
                   </div>
                 ) : null}

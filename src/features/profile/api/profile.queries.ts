@@ -3,6 +3,8 @@ import {
   changeMyPassword,
   getMyPreferences,
   getMyProfile,
+  removeMyAvatar,
+  uploadMyAvatar,
   updateMyPreferences,
   updateMyProfile,
 } from './profile.api'
@@ -47,6 +49,30 @@ export function useUpdateMyProfileMutation() {
 export function useChangeMyPasswordMutation() {
   return useMutation({
     mutationFn: (payload: ChangeMyPasswordInput) => changeMyPassword(payload),
+  })
+}
+
+export function useUploadMyAvatarMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (file: File) => uploadMyAvatar(file),
+    onSuccess: (data) => {
+      queryClient.setQueryData(profileQueryKeys.me, data)
+      queryClient.invalidateQueries({ queryKey: profileQueryKeys.me })
+    },
+  })
+}
+
+export function useRemoveMyAvatarMutation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: () => removeMyAvatar(),
+    onSuccess: (data) => {
+      queryClient.setQueryData(profileQueryKeys.me, data)
+      queryClient.invalidateQueries({ queryKey: profileQueryKeys.me })
+    },
   })
 }
 
